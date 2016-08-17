@@ -180,11 +180,11 @@
 					<provides>
 						<provide>${project.artifactId}</provide>
 					</provides>
-				<!--
+				
 					<requires>
-						<require></require>
+						<require>snap</require>
 					</requires>
-				-->
+			
 				</configuration>
 			</plugin>
 
