@@ -72,7 +72,7 @@
 							<outputDirectory>/application</outputDirectory>
 							<resources>
 								<resource>
-									<directory>${basedir}/src/main/app-resources/</directory>
+									<directory>${basedir}/src/main/app-resources</directory>
 								</resource>
 							</resources>
 						</configuration>
@@ -90,7 +90,7 @@
 						<phase>install</phase>
 						<configuration>
 							<target>
-								<chmod dir="/application" includes="**/run" perm="755" />
+								<chmod dir="/application" includes="**/run.*, **/*.sh" perm="755" />
 								<chmod file="/application/application.xml" perm="664"/>
 							</target>
 						</configuration>
@@ -144,7 +144,7 @@
 							<directory>/application</directory>
 							<sources>
 								<source>
-									<location>${basedir}/src/main/app-resources/</location>
+									<location>${basedir}/src/main/app-resources</location>
 								</source>
 							</sources>
 						</mapping>
@@ -168,7 +168,8 @@
 								<source>
 									<location>${basedir}/src/main/app-resources</location>
 									<includes>
-										<include>**/run</include>
+										<include>**/run.*</include>
+                                                                                <include>**/*.sh</include>
 									</includes>
 								</source>
 							</sources>
