@@ -5,7 +5,7 @@
       <streamingExecutable>/application/snap_s1_ifg_input_splitting/run.sh</streamingExecutable>
       <defaultParameters>
          <parameter id="slave" title="Slave product reference" abstract="Define the slave product reference to be processed with SNAP" scope="runtime" maxOccurs="1">https://data2.terradue.com/eop/scihub/dataset/search?uid=S1A_IW_SLC__1SDV_20160216T051846_20160216T051914_009967_00EA4B_E31C</parameter>
-         <parameter id="subswath" title="Product subswath" abstract="Define the subswath of the product to be processed with SNAP" scope="runtime" maxOccurs="1">
+         <parameter id="subswath" title="Product subswath" abstract="Define the subswath of the product to be processed with SNAP" scope="test" maxOccurs="1">
 	         <options>
         	         <option>IW1</option>
                          <option>IW2</option>
@@ -13,7 +13,7 @@
                          <option>IW1,IW2</option>
                          <option>IW2,IW3</option>
                          <option>IW1,IW2,IW3</option>
-                         <default>IW1</default>
+                         <default>IW1,IW2,IW3</default>
                  </options>
          </parameter>
 	 <parameter id="polarisation" title="Product polarisation" abstract="Define the product polarisation" scope="runtime" maxOccurs="1">
@@ -62,6 +62,14 @@
       <streamingExecutable>/application/snap_s1_ifg_merge_filter/run.sh</streamingExecutable>
       <defaultParameters>
          <parameter id="nLooks" title="Multilook factor" abstract="Define the multilook factor applied for both Azimuth and Range directions in the Multilooking processing [integer]" scope="runtime" maxOccurs="1">2</parameter>
+		 <parameter id="SubsetBoundingBox" title="Subset Bounding Box" abstract="Define the area of interest for the processing [lon_min,lat_min,lon_max,lat_max]" scope="runtime" type="BoundingBoxData" minOccurs="0" maxOccurs="1"></parameter>
+		 <parameter id="performPhaseUnwrapping" title="Perform phase unwrapping" abstract="Select if the phase unwrapping (through SNAPHU) has to be performed" scope="runtime" maxOccurs="1">
+			 <options>
+					<option>true</option>
+					<option>false</option>
+					<default>false</default>
+			</options>
+		 </parameter>
          <parameter id="pixelSpacingInMeter" title="Pixel spacing in meters" abstract="Define the pixel spacing for the Terrain-Correction processing [meters]" scope="runtime" maxOccurs="1">15.0</parameter>
          <parameter id="demtype" title="DEM type" abstract="Define the DEM source for the Back-Geocoding Coregistration, Topographic Phase Removal and Terrain Correction processings" scope="test" maxOccurs="1">
                 <options>

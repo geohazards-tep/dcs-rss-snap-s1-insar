@@ -184,6 +184,7 @@
 				
 					<requires>
 						<require>snap</require>
+                                                <require>snaphu</require>
 					</requires>
 			
 				</configuration>
