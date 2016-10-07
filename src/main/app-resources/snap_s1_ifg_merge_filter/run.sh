@@ -44,7 +44,7 @@ trap cleanExit EXIT
 
 function create_snap_request_mrg_flt_ml() {
 
-#function call: create_snap_request_mrg_flt_ml "${inputfilesDIM[@]}" "${polarisation}" "${nLooks}" "${output_Mrg_Flt_Ml}"      
+#function call: create_snap_request_mrg_flt_ml "${inputfilesDIM[@]}" "${polarisation}" "${nAzLooks}" "${nRgLooks}" "${output_Mrg_Flt_Ml}"      
 
     # function which creates the actual request from
     # a template and returns the path to the request
@@ -61,23 +61,26 @@ function create_snap_request_mrg_flt_ml() {
     # first input file always equal to the first function input
     inputfiles+=("$1")
     
-    if [ "$inputNum" -gt "6" ] || [ "$inputNum" -lt "4" ]; then
+    if [ "$inputNum" -gt "7" ] || [ "$inputNum" -lt "5" ]; then
         return ${SNAP_REQUEST_ERROR}
-    elif [ "$inputNum" -eq "4" ]; then
-        polarisation=$2
-        nLooks=$3
-        output_Mrg_Flt_Ml=$4
     elif [ "$inputNum" -eq "5" ]; then
-        inputfiles+=("$2")
-        polarisation=$3
-        nLooks=$4
+        polarisation=$2
+        nAzLooks=$3
+	nRgLooks=$4
         output_Mrg_Flt_Ml=$5
     elif [ "$inputNum" -eq "6" ]; then
         inputfiles+=("$2")
+        polarisation=$3
+        nAzLooks=$4
+	nRgLooks=$5
+        output_Mrg_Flt_Ml=$6
+    elif [ "$inputNum" -eq "7" ]; then
+        inputfiles+=("$2")
         inputfiles+=("$3")
         polarisation=$4
-        nLooks=$5
-        output_Mrg_Flt_Ml=$6
+        nAzLooks=$5
+        nRgLooks=$6
+        output_Mrg_Flt_Ml=$7
     fi
     
     local commentRead2Begin=""
@@ -166,8 +169,8 @@ ${commentMergeSource3Begin}      <sourceProduct.2 refid="Read(3)"/> ${commentMer
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <sourceBands/>
-      <nRgLooks>${nLooks}</nRgLooks>
-      <nAzLooks>${nLooks}</nAzLooks>
+      <nRgLooks>${nRgLooks}</nRgLooks>
+      <nAzLooks>${nAzLooks}</nAzLooks>
       <outputIntensity>false</outputIntensity>
       <grSquarePixel>true</grSquarePixel>
     </parameters>
@@ -708,9 +711,9 @@ EOF
     } || return ${SNAP_REQUEST_ERROR}
 }
 
-function create_snap_request_snaphuExport_cohSelect() {
+function create_snap_request_snaphuExport() {
 
-#function call: create_snap_request_snaphuExport_cohSelect "${wrappedPhaseDIM}" "${coh_band_suffix}" "${output_cohExtraction}"
+#function call: create_snap_request_snaphuExport "${wrappedPhaseDIM}" 
 
     # function which creates the actual request from
     # a template and returns the path to the request
@@ -718,14 +721,12 @@ function create_snap_request_snaphuExport_cohSelect() {
     # get number of inputs
     inputNum=$#
     # check on number of inputs
-    if [ "$inputNum" -ne "3" ] ; then
+    if [ "$inputNum" -ne "1" ] ; then
         return ${SNAP_REQUEST_ERROR}
     fi
 
     # get input
     local wrappedPhaseDIM=$1
-    local coh_band_suffix=$2
-    local output_cohExtraction=$3
 
     #sets the output filename    
     snap_request_filename="${TMPDIR}/$( uuidgen ).xml"
@@ -758,27 +759,6 @@ function create_snap_request_snaphuExport_cohSelect() {
       <tileCostThreshold>500</tileCostThreshold>
     </parameters>
   </node>
-  <node id="BandSelect">
-    <operator>BandSelect</operator>
-    <sources>
-      <sourceProduct refid="Read"/>
-    </sources>
-    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <selectedPolarisations/>
-      <sourceBands>coh_${coh_band_suffix}</sourceBands>
-      <bandNamePattern/>
-    </parameters>
-  </node>
-  <node id="Write">
-    <operator>Write</operator>
-    <sources>
-      <sourceProduct refid="BandSelect"/>
-    </sources>
-    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <file>${output_cohExtraction}.dim</file>
-      <formatName>BEAM-DIMAP</formatName>
-    </parameters>
-  </node>
   <applicationData id="Presentation">
     <Description/>
     <node id="Read">
@@ -786,12 +766,6 @@ function create_snap_request_snaphuExport_cohSelect() {
     </node>
     <node id="SnaphuExport">
       <displayPosition x="562.0" y="111.0"/>
-    </node>
-    <node id="BandSelect">
-      <displayPosition x="711.0" y="91.0"/>
-    </node>
-    <node id="Write">
-      <displayPosition x="810.0" y="131.0"/>
     </node>
   </applicationData>
 </graph>
@@ -815,17 +789,30 @@ function main() {
     ciop-log "DEBUG" "Number of input products ${inputfilesNum}"
 
     # retrieve the parameters value from workflow or job default value
-    nLooks="`ciop-getparam nLooks`"
+    nAzLooks="`ciop-getparam nAzLooks`"
 
     # log the value, it helps debugging.
     # the log entry is available in the process stderr
-    ciop-log "DEBUG" "The multilook factor is: ${nLooks}"
+    ciop-log "DEBUG" "The Azimuth Multilook factor is: ${nAzLooks}"
 
     #check if not empty and integer
-    [ -z "${nLooks}" ] && exit ${ERR_NO_NLOOKS}
-
+    [ -z "${nAzLooks}" ] && exit ${ERR_NO_NLOOKS}
     re='^[0-9]+$'
-    if ! [[ $nLooks =~ $re ]] ; then
+    if ! [[ $nAzLooks =~ $re ]] ; then
+       exit ${ERR_NLOOKS_NO_INT}
+    fi
+
+    # retrieve the parameters value from workflow or job default value
+    nRgLooks="`ciop-getparam nRgLooks`"
+
+    # log the value, it helps debugging.
+    # the log entry is available in the process stderr
+    ciop-log "DEBUG" "The Range Multilook factor is: ${nRgLooks}"
+
+    #check if not empty and integer
+    [ -z "${nRgLooks}" ] && exit ${ERR_NO_NLOOKS}
+    re='^[0-9]+$'
+    if ! [[ $nRgLooks =~ $re ]] ; then
        exit ${ERR_NLOOKS_NO_INT}
     fi
     
@@ -838,11 +825,11 @@ function main() {
     ciop-log "DEBUG" "The selected subset bounding box data is: ${SubsetBoundingBox}"
 
     #check if empty: in such case the subset must be skipped 
-    [ -z "${SubsetBoundingBox}" ] && performSubset=false || performSubset=true
+    #[ -z "${SubsetBoundingBox}" ] && performSubset=false || performSubset=true
     
     # log the value, it helps debugging.
     # the log entry is available in the process stderr
-    ciop-log "DEBUG" "The performSubset flag is set to ${performSubset}"
+    #ciop-log "DEBUG" "The performSubset flag is set to ${performSubset}"
 
     # retrieve the parameters value from workflow or job default value
     performPhaseUnwrapping="`ciop-getparam performPhaseUnwrapping`"
@@ -851,9 +838,9 @@ function main() {
     # the log entry is available in the process stderr
     ciop-log "DEBUG" "The performPhaseUnwrapping flag is set to ${performPhaseUnwrapping}"
 
-    if [ "${performPhaseUnwrapping}" = true ] && [ "${performSubset}" = false ] ; then
-    	exit ${ERR_UNWRAP_NO_SUBSET}
-    fi
+    #if [ "${performPhaseUnwrapping}" = true ] && [ "${performSubset}" = false ] ; then
+    #	exit ${ERR_UNWRAP_NO_SUBSET}
+    #fi
 
     # retrieve the parameters value from workflow or job default value
     demType="`ciop-getparam demtype`"
@@ -936,7 +923,7 @@ function main() {
     ciop-log "INFO" "Preparing SNAP request file for merging, filtering and multilooking processing"
 
     # prepare the SNAP request
-    SNAP_REQUEST=$( create_snap_request_mrg_flt_ml "${inputfilesDIM[@]}" "${polarisation}" "${nLooks}" "${output_Mrg_Flt_Ml}" )
+    SNAP_REQUEST=$( create_snap_request_mrg_flt_ml "${inputfilesDIM[@]}" "${polarisation}" "${nAzLooks}" "${nRgLooks}" "${output_Mrg_Flt_Ml}" )
     [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
 
     # report activity in the log
@@ -968,9 +955,9 @@ function main() {
     coh_band_suffix=$( basename "${coh_source_band}" | sed -n -e 's|^coh_\(.*\).img|\1|p' )
 
     ### SUBSETTING PROCESSING    
-    # perform subsection if needed, else the "output_Mrg_Flt_Ml" product is directly passed to the following processing
+    # perform subsection if needed, in case of phase unwrapping
     local output_subset=""
-    if [ "${performSubset}" = true ] ; then
+    if [ "${performPhaseUnwrapping}" = true ] ; then
         # input product name
         inputfileDIM=${output_Mrg_Flt_Ml}.dim           
     	# output products filename
@@ -979,12 +966,44 @@ function main() {
         SubsetBoundingBox=$( echo "${SubsetBoundingBox}" | sed 's|,| |g' )
         #convert subset bounding box into SNAP subsetting coordinates format
         SubsetBoundingBoxArray=($SubsetBoundingBox)
-        lon_min="${SubsetBoundingBoxArray[0]}"
-        lat_min="${SubsetBoundingBoxArray[1]}"
-        lon_max="${SubsetBoundingBoxArray[2]}"
-        lat_max="${SubsetBoundingBoxArray[3]}"
+        lon_min_user="${SubsetBoundingBoxArray[0]}"
+        lat_min_user="${SubsetBoundingBoxArray[1]}"
+        lon_max_user="${SubsetBoundingBoxArray[2]}"
+        lat_max_user="${SubsetBoundingBoxArray[3]}"
+        # compute center of box
+        lon_center=$(echo "scale=4; ($lon_min_user+$lon_max_user)/2" | bc)
+        lat_center=$(echo "scale=4; ($lat_min_user+$lat_max_user)/2" | bc)
+        # fixed size in degrees of the box
+        local boxWidth="0.25"
+        # AOI limited by the fixed size
+        lon_min_box=$(echo "scale=4; $lon_center-($boxWidth/2)" | bc)
+        lon_max_box=$(echo "scale=4; $lon_center+($boxWidth/2)" | bc)
+        lat_min_box=$(echo "scale=4; $lat_center-($boxWidth/2)" | bc)
+        lat_max_box=$(echo "scale=4; $lat_center+($boxWidth/2)" | bc)
+        local lon_min=""
+        local lat_min=""
+        local lon_max=""
+        local lat_max=""
+        # if the user AOI is contained in the limited AOI get user AOI
+  	if (( $(bc <<< "$lon_min_user > $lon_min_box") )) && (( $(bc <<< "$lon_max_user < $lon_max_box") )) && (( $(bc <<< "$lat_min_user > $lat_min_box") )) && (( $(bc <<< "$lat_max_user < $lat_max_box") ))
+	then
+    		lon_min="${lon_min_user}"
+		lat_min="${lat_min_user}"
+		lon_max="${lon_max_user}"
+		lat_max="${lat_max_user}"
+	else 
+	# otherwise get limited AOI
+		lon_min="${lon_min_box}"
+                lat_min="${lat_min_box}"
+                lon_max="${lon_max_box}"
+                lat_max="${lat_max_box}"
+	fi
         subsettingBox="(("${lon_min}" "${lat_min}", "${lon_max}" "${lat_min}", "${lon_max}" "${lat_max}", "${lon_min}" "${lat_max}", "${lon_min}" "${lat_min}"))" 
-    	
+
+    	# log the value, it helps debugging.
+    	# the log entry is available in the process stderr
+    	ciop-log "INFO" "Applied subsettingBox = ${subsettingBox}"
+
         # report activity in the log
     	ciop-log "INFO" "Preparing SNAP request file for subsetting processing"
 
@@ -1003,29 +1022,46 @@ function main() {
     	# check the exit code
     	[ $? -eq 0 ] || return $ERR_SNAP
         
-    else
-        output_subset=${output_Mrg_Flt_Ml}
     fi    
 
     ### UNWRAPPING AND TERRAIN CORRECTION PROCESSING
-    # perform the "snaphu chain" if the unwrapping is needed, else perform only the terrain correction processing
+    # input product name
+    inputfileDIM=${output_Mrg_Flt_Ml}.dim
+
+    # report activity in the log
+    ciop-log "INFO" "Preparing SNAP request file for terrain correction processing on wrapped phase and coherence"
+
+    # prepare the SNAP request
+    SNAP_REQUEST=$( create_snap_request_terrainCorrection "${inputfileDIM}" "${demType}" "${pixelSpacingInMeter}" "${mapProjection}" "${i_q_band_suffix}" "${coh_band_suffix}" "${OUTPUTDIR}" )
+    [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
+
+    # report activity in the log
+    ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
+
+    # report activity in the log
+    ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for terrain correction processing on wrapped phase and coherence"
+
+    # invoke the ESA SNAP toolbox
+    gpt $SNAP_REQUEST &> /dev/null
+    # check the exit code
+    [ $? -eq 0 ] || return $ERR_SNAP
+
+    # perform the "snaphu chain" if the unwrapping is needed, in addition to the terrain correction processing on the entire image
     if [ "${performPhaseUnwrapping}" = true ] ; then
 
 	# report activity in the log
-        ciop-log "INFO" "Preparing SNAP request file for SNAPHU export and coherence band extraction"
+        ciop-log "INFO" "Preparing SNAP request file for SNAPHU export"
         
         # input wrapped phase DIM product
         wrappedPhaseDIM=${output_subset}.dim	
-        # build output extracted coherence product
-        output_cohExtraction=${TMPDIR}/extracted_coherence
         # output of snap export is always a folder with the same name of wrappedPhaseDIM, but without any .dim or .data extension
         output_snaphuExport=${output_subset}
         # prepare the SNAP request
-        SNAP_REQUEST=$( create_snap_request_snaphuExport_cohSelect "${wrappedPhaseDIM}" "${coh_band_suffix}" "${output_cohExtraction}" )
+        SNAP_REQUEST=$( create_snap_request_snaphuExport "${wrappedPhaseDIM}" )
         [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
 
         # report activity in the log
-        ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for SNAPHU export and coherence band extraction"
+        ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for SNAPHU export" 
 
         # invoke the ESA SNAP toolbox
         gpt $SNAP_REQUEST &> /dev/null
@@ -1051,7 +1087,7 @@ function main() {
         cd ${currentDir}      
         
         # report activity in the log
-        ciop-log "INFO" "Preparing SNAP request file for SNAPHU import and phase to displacement processings"
+        ciop-log "INFO" "Preparing SNAP request file for SNAPHU import and phase to displacement processing"
 
         # input unwrapped phase product
         unwrappedPhaseSnaphuOutHDR=${output_snaphuExport}/UnwPhase_${i_q_band_suffix}.snaphu.hdr  
@@ -1066,7 +1102,7 @@ function main() {
         ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
 
         # report activity in the log
-        ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for SNAPHU import and phase to displacement processings"
+        ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for SNAPHU import and phase to displacement processing"
 
         # invoke the ESA SNAP toolbox
         gpt $SNAP_REQUEST &> /dev/null
@@ -1093,47 +1129,6 @@ function main() {
         # check the exit code
         [ $? -eq 0 ] || return $ERR_SNAP
         
-        # report activity in the log
-        ciop-log "INFO" "Preparing SNAP request file for terrain correction processing (Input = Coherence)"
-
-		ouput_cohExtractionDIM=${output_cohExtraction}.dim
-        # Build output name for terrain corrected coherence
-        out_tc_coh=${OUTPUTDIR}/coh_${coh_band_suffix}
-        # prepare the SNAP request
-        SNAP_REQUEST=$( create_snap_request_terrainCorrection_individualBand "${ouput_cohExtractionDIM}" "${demType}" "${pixelSpacingInMeter}" "${mapProjection}" "${out_tc_coh}" )
-        [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-
-        # report activity in the log
-        ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
-
-        # report activity in the log
-        ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for terrain correction processing (Input = Coherence)"
-
-        # invoke the ESA SNAP toolbox
-        gpt $SNAP_REQUEST &> /dev/null
-        # check the exit code
-        [ $? -eq 0 ] || return $ERR_SNAP
-    else
-	# input product name
-        inputfileDIM=${output_subset}.dim
-
-        # report activity in the log
-        ciop-log "INFO" "Preparing SNAP request file for terrain correction processing"
-
-        # prepare the SNAP request
-        SNAP_REQUEST=$( create_snap_request_terrainCorrection "${inputfileDIM}" "${demType}" "${pixelSpacingInMeter}" "${mapProjection}" "${i_q_band_suffix}" "${coh_band_suffix}" "${OUTPUTDIR}" )
-        [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-
-        # report activity in the log
-        ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
-
-        # report activity in the log
-        ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for terrain correction processing"
-
-        # invoke the ESA SNAP toolbox
-        gpt $SNAP_REQUEST &> /dev/null
-        # check the exit code
-        [ $? -eq 0 ] || return $ERR_SNAP 
     fi
 
     # publish the ESA SNAP results
