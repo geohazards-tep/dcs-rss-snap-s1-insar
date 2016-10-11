@@ -4,7 +4,7 @@
     <jobTemplate id="snap_s1_ifg_input_splitting">
       <streamingExecutable>/application/snap_s1_ifg_input_splitting/run.sh</streamingExecutable>
       <defaultParameters>
-         <parameter id="slave" title="Slave product reference" abstract="Define the slave product reference to be processed with SNAP" scope="runtime" maxOccurs="1">https://data2.terradue.com/eop/scihub/dataset/search?uid=S1A_IW_SLC__1SDV_20160902T051117_20160902T051144_012869_014526_DFB4</parameter>
+         <parameter id="slave" title="Slave product reference" abstract="Define the slave product reference to be processed with SNAP" scope="runtime" maxOccurs="1"></parameter>
          <parameter id="subswath" title="Product subswath" abstract="Define the subswath of the product to be processed with SNAP" scope="test" maxOccurs="1">
 	         <options>
         	         <option>IW1</option>
@@ -70,7 +70,7 @@
 					<default>false</default>
 			</options>
 		 </parameter>
-                 <parameter id="SubsetBoundingBox" title="Subset Bounding Box for Unwrapping" abstract="Define the area of interest for the Phase Unwrapping processing [lon_min,lat_min,lon_max,lat_max]. NOTE: Area is limited to 0.25*0.25 degrees around the center." scope="runtime" type="BoundingBoxData" minOccurs="1" maxOccurs="1">13.1,42.65,13.35,42.9</parameter>
+                 <parameter id="SubsetBoundingBox" title="Subset Bounding Box for Unwrapping" abstract="Define the area of interest for the Phase Unwrapping processing [lon_min,lat_min,lon_max,lat_max]. NOTE: Area is limited to 0.25*0.25 degrees around the center." scope="runtime" type="BoundingBoxData" minOccurs="1" maxOccurs="1">-180.0,-56.0,180.0,60.0</parameter>
          <parameter id="pixelSpacingInMeter" title="Pixel spacing in meters" abstract="Define the pixel spacing for the Terrain-Correction processing [meters]" scope="runtime" maxOccurs="1">15.0</parameter>
          <parameter id="demtype" title="DEM type" abstract="Define the DEM source for the Back-Geocoding Coregistration, Topographic Phase Removal and Terrain Correction processing. NOTE: SRTM valid in the [-56 deg,+60 deg] range of latitudes." scope="test" maxOccurs="1">
                 <options>
@@ -101,7 +101,7 @@
     <node id="node_snap_s1_ifg_input_splitting">
       <job id="snap_s1_ifg_input_splitting" />
       <sources>
-        <source id="master" title="Master product reference" abstract="Define the master product reference to be processed with SNAP" scope="runtime" refid="string:list" maxOccurs="1">https://data2.terradue.com/eop/scihub/dataset/search?uid=S1A_IW_SLC__1SDV_20160821T051116_20160821T051143_012694_013F33_53E5</source>
+        <source id="master" title="Master product reference" abstract="Define the master product reference to be processed with SNAP" scope="runtime" refid="string:list" maxOccurs="1"></source>
       </sources>
       <parameters/>
     </node>
