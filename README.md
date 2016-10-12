@@ -1,4 +1,4 @@
-## Interferometric SAR processing of Sentinel 1 images with SNAP
+## Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP
 
 #### Overview
 
@@ -43,11 +43,27 @@ Used in Cluster mode (a set of master and slave nodes), it supports the deployme
 
 #### Dependencies 
 
-SNAP will be automatically installed together with this application installation. 
+##### SNAP
+
+SNAP is the common architecture for all Sentinel Toolboxes. It should be automatically installed together with this application installation. 
+SNAP software package is available through the Terradue Cloud Platform software repository. It can be manually installed through this command:
+```bash
+sudo yum install snap -y
+```
 
 > SNAP is licensed under [GNU GPL v3](https://www.gnu.org/licenses/gpl.html). For more information about SNAP go to [SNAP](http://step.esa.int/main/toolboxes/snap).
 
-##### Using the releases
+##### SNAPHU
+
+[SNAPHU](http://web.stanford.edu/group/radar/softwareandlinks/sw/snaphu) is the phase unwrapper processor developed by the Stanford Radar Interferometry Research Group. It should be automatically installed together with this application installation.
+SNAPHU software package is available through the Terradue Cloud Platform software repository. It can be manually installed through this command:
+```bash
+sudo yum install snaphu -y
+```
+
+> Copyright information available at [SNAPHU distribution README file](http://web.stanford.edu/group/radar/softwareandlinks/sw/snaphu/README).
+
+#### Using the releases
 
 Log on the developer cloud sandbox. Download the RPM package from https://github.com/geohazards-tep/dcs-rss-snap-s1-insar/releases.
 Install the downloaded package by running these commands in a shell:
@@ -78,19 +94,9 @@ Or invoke the Web Processing Service via the Sandbox dashboard or the [Geohazard
 
 #### Master and Slave products' reference:
 
-These are the URLs of the master and slave products to be processed, for example:
-* https://data2.terradue.com/eop/scihub/dataset/search?uid=S1A_IW_SLC__1SDV_20160123T051846_20160123T051914_009617_00E01B_3EC0 (default master)
-* https://data2.terradue.com/eop/scihub/dataset/search?uid=S1A_IW_SLC__1SDV_20160216T051846_20160216T051914_009967_00EA4B_E31C (default slave)
-
-#### Product subswath
-
-Define the subswath(s) to be processed:
-* IW1 (default)
-* IW2
-* IW3
-* IW1,IW2
-* IW2,IW3
-* IW1,IW2,IW3
+These are the URLs of the master and slave products to be processed, for example to have an interferogram related to the center Italy earthquake of August 2016:
+* Master = https://catalog.terradue.com//sentinel1/search?format=atom&uid=S1A_IW_SLC__1SDV_20160821T051116_20160821T051143_012694_013F33_53E5; 
+* Slave = https://catalog.terradue.com//sentinel1/search?format=atom&uid=S1A_IW_SLC__1SDV_20160902T051117_20160902T051144_012869_014526_DFB4.
 
 #### Product polarisation
 
@@ -107,6 +113,14 @@ Define the orbit source for the Orbit Correction:
 * Sentinel Precise
 * Sentinel Restituted (default) 
 
+NOTE: Precise orbit is available after 20 days of the data acquisition time.
+
+#### DEM type
+Define the DEM source for the Back-Geocoding Coregistration, Topographic Phase Removal and Terrain Correction processing:
+* SRTM 3Sec (default)
+
+NOTE: SRTM valid in the [-56 deg,+60 deg] range of latitudes.
+
 #### Azimuth coherence window size
 
 Define the coherence estimation azimuth window size for the Interferogram processing [integer number of pixels]: 6 is used as default.
@@ -115,18 +129,35 @@ Define the coherence estimation azimuth window size for the Interferogram proces
 
 Define the coherence estimation range window size for the Interferogram processing [integer number of pixels]: 20 is used as default.          
 
-#### Multilook factor
+#### Azimuth Multilook factor
 
-Define the multilook factor applied for both Azimuth and Range directions in the Multilooking processing [integer]: 2 is used as default.
+Define the multilook factor applied for Azimuth direction in the Multilooking processing [integer]: 1 is used as default.
+
+#### Range Multilook factor
+
+Define the multilook factor applied for Range direction in the Multilooking processing [integer]: 4 is used as default.
+
+#### Perform phase unwrapping
+
+Select if the phase unwrapping (through SNAPHU) has to be performed:
+* true
+* false (default)
+
+#### Subset Bounding Box for Unwrapping
+Define the area of interest for the Phase Unwrapping processing [lon_min,lat_min,lon_max,lat_max]: -180.0,-56.0,180.0,60.0 used as default (SRTM coverage). 
+
+NOTE: Area is limited to 0.25x0.25 degrees around the center of the selected area of interest.
 
 #### Pixel spacing in meters
 
 Define the pixel spacing for the Terrain-Correction processing [meters]: 15.0 is used as default.
 
+
 To learn more and find information go to
 
 * [Developer Cloud Sandbox](http://docs.terradue.com/developer) service
 * [SNAP](http://step.esa.int/main/toolboxes/snap)
+* [SNAPHU](http://web.stanford.edu/group/radar/softwareandlinks/sw/snaphu)
 * [Sentinel-1 Toolbox](http://step.esa.int/main/toolboxes/sentinel-1-toolbox)
 * [Sentinel-1 TOPSAR Interferometry Tutorial with S1TBX](http://sentinel1.s3.amazonaws.com/docs/S1TBX%20TOPSAR%20Interferometry%20with%20Sentinel-1%20Tutorial.pdf) 
 * [ESA Geohazards Exploitation Platform](https://geohazards-tep.eo.esa.int)
