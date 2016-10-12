@@ -344,7 +344,8 @@ function main() {
    ciop-publish  ${outputnameIfgTopoPhaseRemoved}.zip    
 
    # cleanup
-   rm -rf ${SNAP_REQUEST} "${INPUTDIR}"/* "${OUTPUTDIR}"/*
+   rm -rf ${SNAP_REQUEST} "${INPUTDIR}"/* "${OUTPUTDIR}"/*  
+   hadoop dfs -rmr "${splittedCouple}"
 
 }
 

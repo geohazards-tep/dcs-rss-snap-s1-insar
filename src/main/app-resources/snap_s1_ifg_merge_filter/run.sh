@@ -954,11 +954,33 @@ function main() {
     local coh_band_suffix=""
     coh_band_suffix=$( basename "${coh_source_band}" | sed -n -e 's|^coh_\(.*\).img|\1|p' )
 
-    ### SUBSETTING PROCESSING    
-    # perform subsection if needed, in case of phase unwrapping
+    ### TERRAIN CORRECTION PROCESSING ON WRAPPED PHASE AND COHERENCE
+    # input product name
+    inputfileDIM=${output_Mrg_Flt_Ml}.dim
+
+    # report activity in the log
+    ciop-log "INFO" "Preparing SNAP request file for terrain correction processing on wrapped phase and coherence"
+
+    # prepare the SNAP request
+    SNAP_REQUEST=$( create_snap_request_terrainCorrection "${inputfileDIM}" "${demType}" "${pixelSpacingInMeter}" "${mapProjection}" "${i_q_band_suffix}" "${coh_band_suffix}" "${OUTPUTDIR}" )
+    [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
+
+    # report activity in the log
+    ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
+
+    # report activity in the log
+    ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for terrain correction processing on wrapped phase and coherence"
+
+    # invoke the ESA SNAP toolbox
+    gpt $SNAP_REQUEST &> /dev/null
+    # check the exit code
+    [ $? -eq 0 ] || return $ERR_SNAP
+
+    ### PHASE UNWRAPPING PROCESSING
     local output_subset=""
     if [ "${performPhaseUnwrapping}" = true ] ; then
-        # input product name
+        ## SUBSETTING
+	# input product name
         inputfileDIM=${output_Mrg_Flt_Ml}.dim           
     	# output products filename
     	output_subset=${TMPDIR}/target_IW_${polarisation}_Split_Orb_Back_ESD_Ifg_Deb_DInSAR_Merge_Flt_ML_Sbs
@@ -1022,33 +1044,7 @@ function main() {
     	# check the exit code
     	[ $? -eq 0 ] || return $ERR_SNAP
         
-    fi    
-
-    ### UNWRAPPING AND TERRAIN CORRECTION PROCESSING
-    # input product name
-    inputfileDIM=${output_Mrg_Flt_Ml}.dim
-
-    # report activity in the log
-    ciop-log "INFO" "Preparing SNAP request file for terrain correction processing on wrapped phase and coherence"
-
-    # prepare the SNAP request
-    SNAP_REQUEST=$( create_snap_request_terrainCorrection "${inputfileDIM}" "${demType}" "${pixelSpacingInMeter}" "${mapProjection}" "${i_q_band_suffix}" "${coh_band_suffix}" "${OUTPUTDIR}" )
-    [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-
-    # report activity in the log
-    ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
-
-    # report activity in the log
-    ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for terrain correction processing on wrapped phase and coherence"
-
-    # invoke the ESA SNAP toolbox
-    gpt $SNAP_REQUEST &> /dev/null
-    # check the exit code
-    [ $? -eq 0 ] || return $ERR_SNAP
-
-    # perform the "snaphu chain" if the unwrapping is needed, in addition to the terrain correction processing on the entire image
-    if [ "${performPhaseUnwrapping}" = true ] ; then
-
+	## SNAPHU CHAIN PROCESSING
 	# report activity in the log
         ciop-log "INFO" "Preparing SNAP request file for SNAPHU export"
         
@@ -1137,6 +1133,10 @@ function main() {
 	
     # cleanup
     rm -rf "${INPUTDIR}"/* "${TMPDIR}"/* "${OUTPUTDIR}"/* 
+    for index in `seq 0 $inputfilesNum`;
+    do
+    	hadoop dfs -rmr "${inputfiles[$index]}"     	
+    done
 
     return ${SUCCESS}
 }
