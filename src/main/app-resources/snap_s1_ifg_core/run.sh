@@ -33,6 +33,7 @@ function cleanExit ()
     esac
 
    [ ${retval} -ne 0 ] && ciop-log "ERROR" "Error ${retval} - ${msg}, processing aborted" || ciop-log "INFO" "${msg}"
+   [ ${retval} -ne 0 ] && hadoop dfs -rmr $(dirname "${inputfile}")
    exit ${retval}
 }
 
@@ -249,7 +250,7 @@ function main() {
 
    #check if not empty and integer
    [ -z "${cohWinAz}" ] && exit ${ERR_NOCOH_WIN_SIZE}
-   
+  
    re='^[0-9]+$'
    if ! [[ $cohWinAz =~ $re ]] ; then
       exit ${ERR_COH_WIN_SIZE_NO_INT}
