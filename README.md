@@ -85,12 +85,7 @@ mvn install
 
 ### <a name="submit"></a>Submitting the workflow
 
-Run this command in a shell:
-
-```bash
-ciop-run
-```
-Or invoke the Web Processing Service via the Sandbox dashboard or the [Geohazards Thematic Exploitation platform](https://geohazards-tep.eo.esa.int) providing the following items:
+Invoke the Web Processing Service via the Sandbox dashboard or the [Geohazards Thematic Exploitation platform](https://geohazards-tep.eo.esa.int) providing the following items:
 
 #### Master and Slave products' reference:
 
@@ -144,9 +139,11 @@ Select if the phase unwrapping (through SNAPHU) has to be performed:
 * false (default)
 
 #### Subset Bounding Box for Unwrapping
-Define the area of interest for the Phase Unwrapping processing [lon_min,lat_min,lon_max,lat_max]: -180.0,-56.0,180.0,60.0 used as default (SRTM coverage). 
+Define the area of interest for the Phase Unwrapping processing [lon_min,lat_min,lon_max,lat_max].
 
-NOTE: Area is limited to 0.25x0.25 degrees around the center of the selected area of interest.
+NOTE (1): This parameter is mandatory even if the Phase Unwrapping is not requested (i.e. when "Perform phase unwrapping"=false). Please put "-180.0,-56.0,180.0,60.0" as bounding box value in case of wrapped interferogram generation only. 
+
+NOTE (2): Area is limited to 0.25x0.25 degrees around the center of the selected area of interest.
 
 #### Pixel spacing in meters
 
