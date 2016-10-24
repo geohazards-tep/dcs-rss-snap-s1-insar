@@ -16,6 +16,8 @@ ERR_NLOOKS_NO_INT=5
 ERR_NO_PIXEL_SPACING=6
 ERR_PIXEL_SPACING_NO_NUM=7
 ERR_UNWRAP_NO_SUBSET=8
+ERR_PROPERTIES_FILE_CREATOR=9
+ERR_PCONVERT=10
 
 # add a trap to exit gracefully
 function cleanExit ()
@@ -33,10 +35,13 @@ function cleanExit ()
         ${ERR_NO_PIXEL_SPACING})  	msg="Pixel spacing is empty";;
         ${ERR_PIXEL_SPACING_NO_NUM})	msg="Pixel spacing is not a number";;
         ${ERR_UNWRAP_NO_SUBSET})    	msg="The subset bounding box data must be not empty in case of phase unwrapping (i.e. when performPhaseUnwrapping=true)";;
+        ${ERR_PROPERTIES_FILE_CREATOR})	msg="Could not create the .properties file";;
+        ${ERR_PCONVERT})                msg="PCONVERT failed to process";;
         *)                        	msg="Unknown error";;
     esac
 
    [ ${retval} -ne 0 ] && ciop-log "ERROR" "Error ${retval} - ${msg}, processing aborted" || ciop-log "INFO" "${msg}"
+   [ ${retval} -ne 0 ] && hadoop dfs -rmr $(dirname "${inputfiles[0]}")
    exit ${retval}
 }
 
@@ -777,6 +782,42 @@ EOF
     } || return ${SNAP_REQUEST_ERROR}
 }
 
+function propertiesFileCrator(){
+#function call: propertiesFileCrator "${outputProductTif}" "${outputProductPNG}" 
+
+    # get number of inputs
+    inputNum=$#
+    # check on number of inputs
+    if [ "$inputNum" -ne "2" ] ; then
+        return ${ERR_PROPERTIES_FILE_CREATOR}
+    fi
+
+    # function which creates the .properties file to attach to the output png file
+	local outputProductTif=$1
+	local outputProductPNG=$2
+	
+	# extracttion coordinates from gdalinfo
+	# from a string like "Upper Left  (  13.0450832,  42.4802388) ( 13d 2'42.30"E, 42d28'48.86"N)" is extracted "13.0450832 42.4802388"
+	lon_lat_1=$( gdalinfo "${outputProductTif}" | grep "Lower Left"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
+	lon_lat_2=$( gdalinfo "${outputProductTif}" | grep "Upper Left"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
+	lon_lat_3=$( gdalinfo "${outputProductTif}" | grep "Upper Right"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
+	lon_lat_4=$( gdalinfo "${outputProductTif}" | grep "Lower Right"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
+	
+	outputProductPNG_basename=$(basename "${outputProductPNG}")
+	properties_filename=${outputProductPNG}.properties
+	
+	cat << EOF > ${properties_filename}
+title=${outputProductPNG_basename}
+geometry=POLYGON(( ${lon_lat_1}, ${lon_lat_2}, ${lon_lat_3}, ${lon_lat_4}, ${lon_lat_1} ))
+EOF
+	
+    [ $? -eq 0 ] && {
+        echo "${properties_filename}"
+        return 0
+    } || return ${ERR_PROPERTIES_FILE_CREATOR}
+
+}
+
 function main() {
 
     #get input product list and convert it into an array
@@ -976,6 +1017,39 @@ function main() {
     # check the exit code
     [ $? -eq 0 ] || return $ERR_SNAP
 
+    ## QUICK-LOOK CREATION
+    #get output phase product filename
+    outputPhaseTIF=$( ls "${OUTPUTDIR}"/phase_* )
+    outputPhasePNG_basename=$( echo `basename ${outputPhaseTIF}` | sed 's|tif|png|g' )
+    outputPhasePNG="${OUTPUTDIR}"/"${outputPhasePNG_basename}"
+
+    #get output coherence product filename
+    outputCohTIF=$( ls "${OUTPUTDIR}"/coh_* )
+    outputCohPNG_basename=$( echo `basename ${outputCohTIF}` | sed 's|tif|png|g' )
+    outputCohPNG="${OUTPUTDIR}"/"${outputCohPNG_basename}"
+
+    # report activity in the log
+    ciop-log "INFO" "Creating png quick-look file for phase and coherence output products"
+
+    # create png for phase product
+    pconvert -f png -b 1 -c $_CIOP_APPLICATION_PATH/gpt/cubehelix_cycle.cpd -W 4096 -o "${OUTPUTDIR}" "${outputPhaseTIF}" &> /dev/null
+    # check the exit code
+    [ $? -eq 0 ] || return $ERR_PCONVERT
+    # create png for coherence product
+    pconvert -f png -b 1 -W 4096 -o "${OUTPUTDIR}" "${outputCohTIF}" &> /dev/null
+    # check the exit code
+    [ $? -eq 0 ] || return $ERR_PCONVERT
+
+    #create .properties file for phase png quick-look
+    outputPhasePNG_properties=$( propertiesFileCrator "${outputPhaseTIF}" "${outputPhasePNG}" )
+    # report activity in the log
+    ciop-log "DEBUG" "Phase properties file created: ${outputPhasePNG_properties}"
+
+    #create .properties file for coherence png quick-look
+    outputCohPNG_properties=$( propertiesFileCrator "${outputCohTIF}" "${outputCohPNG}" )
+    # report activity in the log
+    ciop-log "DEBUG" "Coherence properties file created: ${outputCohPNG_properties}"
+
     ### PHASE UNWRAPPING PROCESSING
     local output_subset=""
     if [ "${performPhaseUnwrapping}" = true ] ; then
@@ -1124,6 +1198,28 @@ function main() {
         gpt $SNAP_REQUEST &> /dev/null
         # check the exit code
         [ $? -eq 0 ] || return $ERR_SNAP
+	
+	## QUICK-LOOK CREATION
+	#get output displacement product filename
+	outDisplacementTIF=$( ls "${OUTPUTDIR}"/displacement_* )
+	outDisplacementPNG_basename=$( echo `basename ${outDisplacementTIF}` | sed 's|tif|png|g' )
+	outDisplacementPNG="${OUTPUTDIR}"/"${outDisplacementPNG_basename}"
+
+	# report activity in the log
+	ciop-log "INFO" "Creating png quick-look file for displacement output product"
+
+	# create png for displacement phase product
+	pconvert -f png -b 1 -c $_CIOP_APPLICATION_PATH/gpt/JET.cpd -W 4096 -o "${OUTPUTDIR}" "${outDisplacementTIF}" &> /dev/null
+	# check the exit code
+	[ $? -eq 0 ] || return $ERR_PCONVERT
+
+	# report activity in the log
+	ciop-log "INFO" "Creating properties file for displacement quick-look product"
+
+	#create .properties file for displacement png quick-look
+	outDisplacementPNG_properties=$( propertiesFileCrator "${outDisplacementTIF}" "${outDisplacementPNG}" )
+	# report activity in the log
+	ciop-log "DEBUG" "Displacement properties file created: ${outDisplacementPNG_properties}"
         
     fi
 
