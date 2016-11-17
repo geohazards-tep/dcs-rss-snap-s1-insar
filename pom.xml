@@ -47,7 +47,7 @@
                 <configuration>
                   <!-- Set here the dependencies installed with 'sudo yum install'-->
                   <requires>
-                    <require>snap</require>
+                    <require>snap = 3.0-1.el6</require>
                     <require>snaphu</require>
                   </requires>
                 </configuration>
