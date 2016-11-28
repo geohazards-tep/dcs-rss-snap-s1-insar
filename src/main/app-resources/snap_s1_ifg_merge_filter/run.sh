@@ -18,6 +18,7 @@ ERR_PIXEL_SPACING_NO_NUM=7
 ERR_UNWRAP_NO_SUBSET=8
 ERR_PROPERTIES_FILE_CREATOR=9
 ERR_PCONVERT=10
+ERR_COLORBAR_CREATOR=11
 
 # add a trap to exit gracefully
 function cleanExit ()
@@ -37,6 +38,7 @@ function cleanExit ()
         ${ERR_UNWRAP_NO_SUBSET})    	msg="The subset bounding box data must be not empty in case of phase unwrapping (i.e. when performPhaseUnwrapping=true)";;
         ${ERR_PROPERTIES_FILE_CREATOR})	msg="Could not create the .properties file";;
         ${ERR_PCONVERT})                msg="PCONVERT failed to process";;
+        ${ERR_COLORBAR_CREATOR})        msg="Failed during colorbar creation";;
         *)                        	msg="Unknown error";;
     esac
 
@@ -782,41 +784,188 @@ EOF
     } || return ${SNAP_REQUEST_ERROR}
 }
 
-function propertiesFileCrator(){
-#function call: propertiesFileCrator "${outputProductTif}" "${outputProductPNG}" 
+function propertiesFileCratorPNG(){
+#function call: propertiesFileCratorPNG "${outputProductTif}" "${outputProductPNG}" "${legendPng}"
 
     # get number of inputs
     inputNum=$#
     # check on number of inputs
-    if [ "$inputNum" -ne "2" ] ; then
+    if [ "$inputNum" -lt "2" ] || [ "$inputNum" -gt "3" ]; then
         return ${ERR_PROPERTIES_FILE_CREATOR}
     fi
 
     # function which creates the .properties file to attach to the output png file
-	local outputProductTif=$1
-	local outputProductPNG=$2
+    local outputProductTif=$1
+    local outputProductPNG=$2
+    if [ "$inputNum" -eq "3" ]; then
+         legendPng=$3
+         legendPng_basename=$(basename "${legendPng}")
+    fi 
+
 	
-	# extracttion coordinates from gdalinfo
-	# from a string like "Upper Left  (  13.0450832,  42.4802388) ( 13d 2'42.30"E, 42d28'48.86"N)" is extracted "13.0450832 42.4802388"
-	lon_lat_1=$( gdalinfo "${outputProductTif}" | grep "Lower Left"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
-	lon_lat_2=$( gdalinfo "${outputProductTif}" | grep "Upper Left"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
-	lon_lat_3=$( gdalinfo "${outputProductTif}" | grep "Upper Right"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
-	lon_lat_4=$( gdalinfo "${outputProductTif}" | grep "Lower Right"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
+    # extraction coordinates from gdalinfo
+    # from a string like "Upper Left  (  13.0450832,  42.4802388) ( 13d 2'42.30"E, 42d28'48.86"N)" is extracted "13.0450832 42.4802388"
+    lon_lat_1=$( gdalinfo "${outputProductTif}" | grep "Lower Left"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
+    lon_lat_2=$( gdalinfo "${outputProductTif}" | grep "Upper Left"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
+    lon_lat_3=$( gdalinfo "${outputProductTif}" | grep "Upper Right"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
+    lon_lat_4=$( gdalinfo "${outputProductTif}" | grep "Lower Right"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
 	
-	outputProductPNG_basename=$(basename "${outputProductPNG}")
-	properties_filename=${outputProductPNG}.properties
-	
+    outputProductPNG_basename=$(basename "${outputProductPNG}")
+    properties_filename=${outputProductPNG}.properties
+    if [ "$inputNum" -eq "2" ]; then	
+
 	cat << EOF > ${properties_filename}
 title=${outputProductPNG_basename}
 geometry=POLYGON(( ${lon_lat_1}, ${lon_lat_2}, ${lon_lat_3}, ${lon_lat_4}, ${lon_lat_1} ))
 EOF
-	
+    else
+ 	cat << EOF > ${properties_filename}
+image_url=./${legendPng_basename}
+title=${outputProductPNG_basename}
+geometry=POLYGON(( ${lon_lat_1}, ${lon_lat_2}, ${lon_lat_3}, ${lon_lat_4}, ${lon_lat_1} ))
+EOF
+    fi
+
     [ $? -eq 0 ] && {
         echo "${properties_filename}"
         return 0
     } || return ${ERR_PROPERTIES_FILE_CREATOR}
 
 }
+
+function propertiesFileCratorTIF(){
+# function call propertiesFileCratorTIF "${outputPhaseTIF}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${SNAP_VERSION}" "${processingTime}"
+    # get number of inputs
+    inputNum=$#
+    # check on number of inputs
+    if [ "$inputNum" -ne "7" ]; then
+        return ${ERR_PROPERTIES_FILE_CREATOR}
+    fi
+
+    # function which creates the .properties file to attach to the output tif file
+    local outputProductTif=$1
+    local dateStart=$2
+    local dateStop=$3
+    local dateDiff_days=$4 
+    local polarisation=$5
+    local snapVersion=$6
+    local processingTime=$7
+
+    outputProductTIF_basename=$(basename "${outputProductTif}")
+    properties_filename=${outputProductTif}.properties
+
+    cat << EOF > ${properties_filename}
+title=${outputProductTIF_basename}
+dateMaster=${dateStart}
+dateSlave=${dateStop}
+dateDiff_days=${dateDiff_days}
+polarisation=${polarisation}
+snapVersion=${snapVersion}
+processingTime=${processingTime}
+EOF
+
+    [ $? -eq 0 ] && {
+        echo "${properties_filename}"
+        return 0
+    } || return ${ERR_PROPERTIES_FILE_CREATOR}
+
+}
+
+function create_snap_request_statsComputation(){
+# function call: create_snap_request_statsComputation $tiffProduct $sourceBandName $outputStatsFile
+    # get number of inputs
+    inputNum=$#
+    # check on number of inputs
+    if [ "$inputNum" -ne "3" ] ; then
+        return ${SNAP_REQUEST_ERROR}
+    fi
+     
+    local tiffProduct=$1
+    local sourceBandName=$2
+    local outputStatsFile=$3
+
+    #sets the output filename
+    snap_request_filename="${TMPDIR}/$( uuidgen ).xml"
+
+   cat << EOF > ${snap_request_filename}
+<graph id="Graph">
+  <version>1.0</version>
+  <node id="StatisticsOp">
+    <operator>StatisticsOp</operator>
+    <sources>
+      <sourceProducts></sourceProducts>
+    </sources>
+    <parameters>
+      <sourceProductPaths>${tiffProduct}</sourceProductPaths>
+      <shapefile></shapefile>
+      <startDate></startDate>
+      <endDate></endDate>
+      <bandConfigurations>
+        <bandConfiguration>
+          <sourceBandName>${sourceBandName}</sourceBandName>
+          <expression></expression>
+          <validPixelExpression></validPixelExpression>
+        </bandConfiguration>
+      </bandConfigurations>
+      <outputShapefile></outputShapefile>
+      <outputAsciiFile>${outputStatsFile}</outputAsciiFile>
+      <percentiles>90,95</percentiles>
+      <accuracy>3</accuracy>
+    </parameters>
+  </node>
+</graph>
+EOF
+
+    [ $? -eq 0 ] && {
+        echo "${snap_request_filename}"
+        return 0
+    } || return ${SNAP_REQUEST_ERROR}
+
+}
+
+
+function colorbarCreator(){
+# function call: colorbarCreator $inputColorbar $statsFile $outputColorbar
+
+    #function that put value labels to the JET colorbar legend input depending on the
+    # provided product statistics   
+
+     # get number of inputs
+    inputNum=$#
+    # check on number of inputs
+    if [ "$inputNum" -ne "3" ] ; then
+        return ${ERR_COLORBAR_CREATOR}
+    fi
+    
+    #get input
+    local inputColorbar=$1
+    local statsFile=$2
+    local outputColorbar=$3
+
+    # get maximum from stats file
+    maximum=$(cat "${statsFile}" | grep world | tr '\t' ' ' | tr -s ' ' | cut -d ' ' -f 5)
+    #get minimum from stats file
+    minimum=$(cat "${statsFile}" | grep world | tr '\t' ' ' | tr -s ' ' | cut -d ' ' -f 7)
+    #compute colorbar values
+    rangeWidth=$(echo "scale=5; ${maximum} - ${minimum}" | bc )
+    red=$(echo "scale=5; $minimum" | bc | awk '{printf "%.2f", $0}')
+    yellow=$(echo "scale=5; $minimum+$rangeWidth/4" | bc | awk '{printf "%.2f", $0}')
+    green=$(echo "scale=5; $minimum+$rangeWidth/2" | bc | awk '{printf "%.2f", $0}')
+    cyan=$(echo "scale=5; $minimum+$rangeWidth*3/4" | bc | awk '{printf "%.2f", $0}')    
+    blue=$(echo "scale=5; $maximum" | bc | awk '{printf "%.2f", $0}')
+    
+    #add color values
+    convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 7,100 \"$red\" " $inputColorbar $outputColorbar
+    convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 76,100 \"$yellow\" " $outputColorbar $outputColorbar
+    convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 147,100 \"$green\" " $outputColorbar $outputColorbar 
+    convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 212,100 \"$cyan\" " $outputColorbar $outputColorbar
+    convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 278,100 \"$blue\" " $outputColorbar $outputColorbar
+
+    return 0
+
+}
+
+
 
 function main() {
 
@@ -1017,16 +1166,39 @@ function main() {
     # check the exit code
     [ $? -eq 0 ] || return $ERR_SNAP
 
-    ## QUICK-LOOK CREATION
+    ## QUICK-LOOK AND PROPERTIES FILE CREATION 
     #get output phase product filename
     outputPhaseTIF=$( ls "${OUTPUTDIR}"/phase_* )
+    outputPhaseTIF_basename=$( echo `basename ${outputPhaseTIF}` )
     outputPhasePNG_basename=$( echo `basename ${outputPhaseTIF}` | sed 's|tif|png|g' )
     outputPhasePNG="${OUTPUTDIR}"/"${outputPhasePNG_basename}"
 
     #get output coherence product filename
     outputCohTIF=$( ls "${OUTPUTDIR}"/coh_* )
+    outputCohTIF_basename=$( echo `basename ${outputCohTIF}` )
     outputCohPNG_basename=$( echo `basename ${outputCohTIF}` | sed 's|tif|png|g' )
     outputCohPNG="${OUTPUTDIR}"/"${outputCohPNG_basename}"
+
+    # get timing info for the tif properties file
+    dates=$(echo "${outputPhaseTIF_basename}" | sed -n -e 's|^.*'"$polarisation"'_\(.*\).tif|\1|p')
+    dateStart=$(echo "${dates}" | sed -n -e 's|^\(.*\)_.*|\1|p')
+    dateStop=$(echo "${dates}" | sed -n -e 's|^.*_\(.*\)|\1|p')
+    dateStart_s=$(date -d "${dateStart}" +%s)
+    dateStop_s=$(date -d "${dateStop}" +%s)
+    dateDiff_s=$(echo "scale=0; $dateStop_s-$dateStart_s" | bc )
+    secondsPerDay="86400"
+    dateDiff_days=$(echo "scale=0; $dateDiff_s/$secondsPerDay" | bc )
+    processingTime=$( date )    
+
+    # create properties file for phase tif product
+    outputPhaseTIF_properties=$( propertiesFileCratorTIF "${outputPhaseTIF}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${SNAP_VERSION}" "${processingTime}" )
+    # report activity in the log
+    ciop-log "DEBUG" "Phase properties file created: ${outputPhaseTIF_properties}"
+
+    # create properties file for coherence tif product
+    outputCohTIF_properties=$( propertiesFileCratorTIF "${outputCohTIF}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${SNAP_VERSION}" "${processingTime}" )
+    # report activity in the log
+    ciop-log "DEBUG" "Coherence properties file created: ${outputCohTIF_properties}"
 
     # report activity in the log
     ciop-log "INFO" "Creating png quick-look file for phase and coherence output products"
@@ -1041,12 +1213,12 @@ function main() {
     [ $? -eq 0 ] || return $ERR_PCONVERT
 
     #create .properties file for phase png quick-look
-    outputPhasePNG_properties=$( propertiesFileCrator "${outputPhaseTIF}" "${outputPhasePNG}" )
+    outputPhasePNG_properties=$( propertiesFileCratorPNG "${outputPhaseTIF}" "${outputPhasePNG}" )
     # report activity in the log
     ciop-log "DEBUG" "Phase properties file created: ${outputPhasePNG_properties}"
 
     #create .properties file for coherence png quick-look
-    outputCohPNG_properties=$( propertiesFileCrator "${outputCohTIF}" "${outputCohPNG}" )
+    outputCohPNG_properties=$( propertiesFileCratorPNG "${outputCohTIF}" "${outputCohPNG}" )
     # report activity in the log
     ciop-log "DEBUG" "Coherence properties file created: ${outputCohPNG_properties}"
 
@@ -1204,6 +1376,13 @@ function main() {
 	outDisplacementTIF=$( ls "${OUTPUTDIR}"/displacement_* )
 	outDisplacementPNG_basename=$( echo `basename ${outDisplacementTIF}` | sed 's|tif|png|g' )
 	outDisplacementPNG="${OUTPUTDIR}"/"${outDisplacementPNG_basename}"
+ 
+        #get processing time info useful to properties file creation for displacemenmt tif product      
+        processingTime=$( date )
+        # create properties file for coherence tif product
+        outputDisplacementTIF_properties=$( propertiesFileCratorTIF "${outDisplacementTIF}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${SNAP_VERSION}" "${processingTime}" )
+        # report activity in the log
+        ciop-log "DEBUG" "Displacement properties file created: ${outputDisplacementTIF_properties}"
 
 	# report activity in the log
 	ciop-log "INFO" "Creating png quick-look file for displacement output product"
@@ -1213,11 +1392,43 @@ function main() {
 	# check the exit code
 	[ $? -eq 0 ] || return $ERR_PCONVERT
 
+        ## STATISTICS EXTRACTION AND COLOR LEGEND CREATION
+        # report activity in the log
+        ciop-log "INFO" "Preparing SNAP request file for statistics extraction from displacement product"
+
+        # Build source bvand name for statistics computation
+        displacementSourceBand=displacement_${polarisation}
+        # Build statistics file name
+        displacementStatsFile=${TMPDIR}/displacement.stats
+        # prepare the SNAP request
+        SNAP_REQUEST=$( create_snap_request_statsComputation "${outDisplacementTIF}" "${displacementSourceBand}" "${displacementStatsFile}" )
+        [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
+
+        # report activity in the log
+        ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
+
+        # report activity in the log
+        ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for statistics extraction from displacement product"
+
+        # invoke the ESA SNAP toolbox
+        gpt $SNAP_REQUEST &> /dev/null
+        # check the exit code
+        [ $? -eq 0 ] || return $ERR_SNAP
+
+        #Colorbar legend to be customized with product statistics
+        colorbarInput=$_CIOP_APPLICATION_PATH/gpt/displacement_legend.png #sample JET (as used for quick-look generationwith pconvert) colorbar image
+        #Output name of customized colorbar legend
+        colorbarOutput="${OUTPUTDIR}"/displacement_legend.png
+        #Customize colorbar with product statistics
+        retVal=$(colorbarCreator "${colorbarInput}" "${displacementStatsFile}" "${colorbarOutput}" )
+        
+        colorbarOutput_basename=$( echo `basename ${colorbarOutput}`)
+
 	# report activity in the log
 	ciop-log "INFO" "Creating properties file for displacement quick-look product"
 
 	#create .properties file for displacement png quick-look
-	outDisplacementPNG_properties=$( propertiesFileCrator "${outDisplacementTIF}" "${outDisplacementPNG}" )
+	outDisplacementPNG_properties=$( propertiesFileCratorPNG "${outDisplacementTIF}" "${outDisplacementPNG}" "${colorbarOutput}")
 	# report activity in the log
 	ciop-log "DEBUG" "Displacement properties file created: ${outDisplacementPNG_properties}"
         
