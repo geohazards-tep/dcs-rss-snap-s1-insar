@@ -11,7 +11,7 @@
     <version>2.0.0</version>
   </parent>
   <description>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</description>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.0.2</version>
   <properties>
     <summary>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</summary>
     <description>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</description>
