@@ -49,6 +49,7 @@
                   <requires>
                     <require>snap = 3.0-1.el6</require>
                     <require>snaphu</require>
+                    <require>ImageMagick</require>
                   </requires>
                 </configuration>
               </execution>
