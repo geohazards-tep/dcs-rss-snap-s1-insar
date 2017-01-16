@@ -159,9 +159,10 @@ function get_data() {
 
   #download data and get data name
   #local_file="$( echo ${enclosure} | ciop-copy -C rssGTEP:Pa554R55GTEP -f -U -O ${target} - 2> /dev/null )"
-  local_file="$( echo ${enclosure} | ciop-copy -f -U -O ${target} - 2> /dev/null )"
+  #local_file="$( echo ${enclosure} | ciop-copy -f -U -O ${target} - 2> /dev/null )"
+  local_file="$( echo ${enclosure} | ciop-copy -f -U -O ${target} - 2> ${TMPDIR}/ciop_copy.stderr )"
   res=$?
-
+  
   [ ${res} -ne 0 ] && return ${res}
   echo ${local_file}
 }
@@ -417,12 +418,8 @@ function main() {
     # the log entry is available in the process stderr
     ciop-log "DEBUG" "Polarisation extracted from slave product name: ${slavePolarization}"
 
-    #check on polarization: master and slave products must have the same polarization
-    if [ "${masterPolarization}" != "${slavePolarization}"  ]; then
-       return $ERR_NOTEQUALPOL
-    fi
-
     #check on polarization: input polarisation must be contained in the input products
+    # master product check
     if [ "${polarisation}" = "HH"  ]; then
        if [ "${masterPolarization}" != "DH" ] && [ "${masterPolarization}" != "SH" ]; then
           return $ERR_INPUTPOLWRONG  
@@ -443,6 +440,27 @@ function main() {
           return $ERR_INPUTPOLWRONG
        fi
     fi
+    # slave product check
+    if [ "${polarisation}" = "HH"  ]; then
+       if [ "${slavePolarization}" != "DH" ] && [ "${slavePolarization}" != "SH" ]; then
+          return $ERR_INPUTPOLWRONG
+       fi
+    fi
+    if [ "${polarisation}" = "VV"  ]; then
+       if [ "${slavePolarization}" != "DV" ] && [ "${slavePolarization}" != "SV" ]; then
+          return $ERR_INPUTPOLWRONG
+       fi
+    fi
+    if [ "${polarisation}" = "HV"  ]; then
+       if [ "${slavePolarization}" != "DH" ]; then
+          return $ERR_INPUTPOLWRONG
+       fi
+    fi
+    if [ "${polarisation}" = "VH"  ]; then
+       if [ "${slavePolarization}" != "DV" ]; then
+          return $ERR_INPUTPOLWRONG
+       fi
+    fi
 
     # report Master retrieving activity in log
     ciop-log "INFO" "Retrieving ${master}"
@@ -455,8 +473,11 @@ function main() {
     #retrievedMaster=$( ciop-copy -U -o $TMPDIR "$masterTmp" )
 
     # check if the file was retrievedMaster, if not exit with the error code $ERR_NORETRIEVEDMASTER
-    [ $? -eq 0 ] && [ -e "${retrievedMaster}" ] || return ${ERR_NORETRIEVEDMASTER}
-
+    #[ $? -eq 0 ] && [ -e "${retrievedMaster}" ] || return ${ERR_NORETRIEVEDMASTER}
+    if [ $? -ne 0  ] ; then
+         cat ${TMPDIR}/ciop_copy.stderr
+         return $ERR_NORETRIEVEDMASTER
+    fi
     mastername=$( basename "$retrievedMaster" )
 
     # report activity in the log
@@ -473,7 +494,11 @@ function main() {
     #retrievedSlave=$( ciop-copy -U -o $TMPDIR "$slaveTmp" )
 
     # check if the file was retrievedSlave, if not exit with the error code $ERR_NORETRIEVEDSLAVE
-    [ $? -eq 0 ] && [ -e "${retrievedSlave}" ] || return ${ERR_NORETRIEVEDSLAVE}
+    #[ $? -eq 0 ] && [ -e "${retrievedSlave}" ] || return ${ERR_NORETRIEVEDSLAVE}
+    if [ $? -ne 0  ] ; then
+          cat ${TMPDIR}/ciop_copy.stderr
+          return $ERR_NORETRIEVEDSLAVE
+    fi
 
     slavename=$( basename "$retrievedSlave" )
 
@@ -513,7 +538,7 @@ function main() {
     	ciop-log "INFO" "Invoking SNAP-gpt on request file for Master and Slave ${currentSubswath} splitting"
 
     	# invoke the ESA SNAP toolbox
-    	gpt $SNAP_REQUEST &> /dev/null
+    	gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
 
     	# check the exit code
     	[ $? -eq 0 ] || return $ERR_SNAP            

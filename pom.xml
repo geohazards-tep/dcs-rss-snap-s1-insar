@@ -11,7 +11,7 @@
     <version>2.0.0</version>
   </parent>
   <description>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</description>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.1</version>
   <properties>
     <summary>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</summary>
     <description>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</description>
@@ -47,8 +47,9 @@
                 <configuration>
                   <!-- Set here the dependencies installed with 'sudo yum install'-->
                   <requires>
-                    <require>snap = 3.0-1.el6</require>
+                    <require>snap = 5.0-1.el6</require>
                     <require>snaphu</require>
+                    <require>ImageMagick</require>
                   </requires>
                 </configuration>
               </execution>
