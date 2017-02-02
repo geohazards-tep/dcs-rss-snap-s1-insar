@@ -51,7 +51,7 @@ trap cleanExit EXIT
 
 function create_snap_request_mrg_flt_ml() {
 
-#function call: create_snap_request_mrg_flt_ml "${inputfilesDIM[@]}" "${polarisation}" "${nAzLooks}" "${nRgLooks}" "${output_Mrg_Flt_Ml}"      
+#function call: create_snap_request_mrg_flt_ml "${inputfilesDIM[@]}" "${demType}" "${polarisation}" "${nAzLooks}" "${nRgLooks}" "${output_Mrg_Flt_Ml}"      
 
     # function which creates the actual request from
     # a template and returns the path to the request
@@ -61,6 +61,7 @@ function create_snap_request_mrg_flt_ml() {
     
     #conversion of first input to array of strings nad get all the remaining input
     local -a inputfiles
+    local demType
     local polarisation
     local nLooks
     local output_Mrg_Flt_Ml
@@ -68,26 +69,29 @@ function create_snap_request_mrg_flt_ml() {
     # first input file always equal to the first function input
     inputfiles+=("$1")
     
-    if [ "$inputNum" -gt "7" ] || [ "$inputNum" -lt "5" ]; then
+    if [ "$inputNum" -gt "8" ] || [ "$inputNum" -lt "6" ]; then
         return ${SNAP_REQUEST_ERROR}
-    elif [ "$inputNum" -eq "5" ]; then
-        polarisation=$2
-        nAzLooks=$3
-	nRgLooks=$4
-        output_Mrg_Flt_Ml=$5
     elif [ "$inputNum" -eq "6" ]; then
-        inputfiles+=("$2")
+        demType=$2
         polarisation=$3
         nAzLooks=$4
 	nRgLooks=$5
         output_Mrg_Flt_Ml=$6
     elif [ "$inputNum" -eq "7" ]; then
         inputfiles+=("$2")
-        inputfiles+=("$3")
+        demType=$3
         polarisation=$4
         nAzLooks=$5
-        nRgLooks=$6
+	nRgLooks=$6
         output_Mrg_Flt_Ml=$7
+    elif [ "$inputNum" -eq "8" ]; then
+        inputfiles+=("$2")
+        inputfiles+=("$3")
+        demType=$4
+        polarisation=$5
+        nAzLooks=$6
+        nRgLooks=$7
+        output_Mrg_Flt_Ml=$8
     fi
     
     local commentRead2Begin=""
@@ -182,11 +186,25 @@ ${commentMergeSource3Begin}      <sourceProduct.2 refid="Read(3)"/> ${commentMer
       <grSquarePixel>true</grSquarePixel>
     </parameters>
   </node>
-  <node id="GoldsteinPhaseFiltering">
-    <operator>GoldsteinPhaseFiltering</operator>
+  <node id="TopoPhaseRemoval">
+    <operator>TopoPhaseRemoval</operator>
     <sources>
 ${commentMergeBegin}      <sourceProduct refid="TOPSAR-Merge"/> ${commentMergeEnd}
 ${commentRead1SourceBegin} <sourceProduct refid="Read"/> ${commentRead1SourceEnd}
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <orbitDegree>3</orbitDegree>
+      <demName>${demType}</demName>
+      <externalDEMFile/>
+      <externalDEMNoDataValue>0.0</externalDEMNoDataValue>
+      <tileExtensionPercent>100</tileExtensionPercent>
+      <topoPhaseBandName>topo_phase</topoPhaseBandName>
+    </parameters>
+  </node>
+  <node id="GoldsteinPhaseFiltering">
+    <operator>GoldsteinPhaseFiltering</operator>
+    <sources>
+      <sourceProduct refid="TopoPhaseRemoval"/> 
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <alpha>1.0</alpha>
@@ -1113,9 +1131,9 @@ function main() {
     ciop-log "INFO" "Preparing SNAP request file for merging, filtering and multilooking processing"
 
     # prepare the SNAP request
-    SNAP_REQUEST=$( create_snap_request_mrg_flt_ml "${inputfilesDIM[@]}" "${polarisation}" "${nAzLooks}" "${nRgLooks}" "${output_Mrg_Flt_Ml}" )
+    SNAP_REQUEST=$( create_snap_request_mrg_flt_ml "${inputfilesDIM[@]}" "${demType}" "${polarisation}" "${nAzLooks}" "${nRgLooks}" "${output_Mrg_Flt_Ml}" )
     [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-
+    
     # report activity in the log
     ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
 
@@ -1123,7 +1141,7 @@ function main() {
     ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for merging, filtering and multilooking processing"
 
     # invoke the ESA SNAP toolbox
-    gpt $SNAP_REQUEST &> /dev/null
+    gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
     # check the exit code
     [ $? -eq 0 ] || return $ERR_SNAP
 
@@ -1157,15 +1175,14 @@ function main() {
 
     # report activity in the log
     ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
-
+    
     # report activity in the log
     ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for terrain correction processing on wrapped phase and coherence"
 
     # invoke the ESA SNAP toolbox
-    gpt $SNAP_REQUEST &> /dev/null
+    gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
     # check the exit code
     [ $? -eq 0 ] || return $ERR_SNAP
-
     ## QUICK-LOOK AND PROPERTIES FILE CREATION 
     #get output phase product filename
     outputPhaseTIF=$( ls "${OUTPUTDIR}"/phase_* )
@@ -1204,11 +1221,11 @@ function main() {
     ciop-log "INFO" "Creating png quick-look file for phase and coherence output products"
 
     # create png for phase product
-    pconvert -f png -b 1 -c $_CIOP_APPLICATION_PATH/gpt/cubehelix_cycle.cpd -W 4096 -o "${OUTPUTDIR}" "${outputPhaseTIF}" &> /dev/null
+    pconvert -f png -b 1 -c $_CIOP_APPLICATION_PATH/gpt/cubehelix_cycle.cpd -W 2048 -o "${OUTPUTDIR}" "${outputPhaseTIF}" &> /dev/null
     # check the exit code
     [ $? -eq 0 ] || return $ERR_PCONVERT
     # create png for coherence product
-    pconvert -f png -b 1 -W 4096 -o "${OUTPUTDIR}" "${outputCohTIF}" &> /dev/null
+    pconvert -f png -b 1 -W 2048 -o "${OUTPUTDIR}" "${outputCohTIF}" &> /dev/null
     # check the exit code
     [ $? -eq 0 ] || return $ERR_PCONVERT
 
@@ -1281,12 +1298,12 @@ function main() {
 
     	# report activity in the log
     	ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
-
+        
     	# report activity in the log
     	ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for subsetting processing"
 
     	# invoke the ESA SNAP toolbox
-    	gpt $SNAP_REQUEST &> /dev/null
+    	gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
     	# check the exit code
     	[ $? -eq 0 ] || return $ERR_SNAP
         
@@ -1301,12 +1318,12 @@ function main() {
         # prepare the SNAP request
         SNAP_REQUEST=$( create_snap_request_snaphuExport "${wrappedPhaseDIM}" )
         [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-
+       
         # report activity in the log
         ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for SNAPHU export" 
 
         # invoke the ESA SNAP toolbox
-        gpt $SNAP_REQUEST &> /dev/null
+        gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
         # check the exit code
         [ $? -eq 0 ] || return $ERR_SNAP
         
@@ -1342,12 +1359,12 @@ function main() {
 
         # report activity in the log
         ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
-
+       
         # report activity in the log
         ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for SNAPHU import and phase to displacement processing"
 
         # invoke the ESA SNAP toolbox
-        gpt $SNAP_REQUEST &> /dev/null
+        gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
         # check the exit code
         [ $? -eq 0 ] || return $ERR_SNAP        
 
@@ -1362,12 +1379,12 @@ function main() {
 
         # report activity in the log
         ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
-
+        
         # report activity in the log
         ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for terrain correction processing (Input = Unwrapped phase converted into displacement)"
 
         # invoke the ESA SNAP toolbox
-        gpt $SNAP_REQUEST &> /dev/null
+        gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
         # check the exit code
         [ $? -eq 0 ] || return $ERR_SNAP
 	
@@ -1388,7 +1405,7 @@ function main() {
 	ciop-log "INFO" "Creating png quick-look file for displacement output product"
 
 	# create png for displacement phase product
-	pconvert -f png -b 1 -c $_CIOP_APPLICATION_PATH/gpt/JET.cpd -W 4096 -o "${OUTPUTDIR}" "${outDisplacementTIF}" &> /dev/null
+	pconvert -f png -b 1 -c $_CIOP_APPLICATION_PATH/gpt/JET.cpd -W 2048 -o "${OUTPUTDIR}" "${outDisplacementTIF}" &> /dev/null
 	# check the exit code
 	[ $? -eq 0 ] || return $ERR_PCONVERT
 
@@ -1411,7 +1428,7 @@ function main() {
         ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for statistics extraction from displacement product"
 
         # invoke the ESA SNAP toolbox
-        gpt $SNAP_REQUEST &> /dev/null
+        gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
         # check the exit code
         [ $? -eq 0 ] || return $ERR_SNAP
 
@@ -1431,7 +1448,6 @@ function main() {
 	outDisplacementPNG_properties=$( propertiesFileCratorPNG "${outDisplacementTIF}" "${outDisplacementPNG}" "${colorbarOutput}")
 	# report activity in the log
 	ciop-log "DEBUG" "Displacement properties file created: ${outDisplacementPNG_properties}"
-        
     fi
 
     # publish the ESA SNAP results
