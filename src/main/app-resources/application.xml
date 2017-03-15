@@ -61,6 +61,13 @@
     <jobTemplate id="snap_s1_ifg_merge_filter">
       <streamingExecutable>/application/snap_s1_ifg_merge_filter/run.sh</streamingExecutable>
       <defaultParameters>
+                 <parameter id="performPhaseFiltering" title="Perform phase filtering" abstract="Select if the Goldstein phase filtering has to be performed" scope="runtime" maxOccurs="1">
+                         <options>
+                                        <option>true</option>
+                                        <option>false</option>
+                                        <default>true</default>
+                        </options>
+                 </parameter>
          <parameter id="nAzLooks" title="Azimuth Multilook factor" abstract="Define the multilook factor applied for Azimuth direction in the Multilooking processing [integer]" scope="runtime" maxOccurs="1">1</parameter>
          <parameter id="nRgLooks" title="Range Multilook factor" abstract="Define the multilook factor applied for Range direction in the Multilooking processing [integer]" scope="runtime" maxOccurs="1">4</parameter>
 		 <parameter id="performPhaseUnwrapping" title="Perform phase unwrapping" abstract="Select if the phase unwrapping (through SNAPHU) has to be performed" scope="runtime" maxOccurs="1">
