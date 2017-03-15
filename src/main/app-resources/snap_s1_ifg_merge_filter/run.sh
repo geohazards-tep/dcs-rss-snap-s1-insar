@@ -43,94 +43,81 @@ function cleanExit ()
     esac
 
    [ ${retval} -ne 0 ] && ciop-log "ERROR" "Error ${retval} - ${msg}, processing aborted" || ciop-log "INFO" "${msg}"
-   [ ${retval} -ne 0 ] && hadoop dfs -rmr $(dirname "${inputfiles[0]}")
+   if [ $DEBUG -ne 1 ] ; then
+	[ ${retval} -ne 0 ] && hadoop dfs -rmr $(dirname "${inputfiles[0]}")
+   fi
    exit ${retval}
 }
 
 trap cleanExit EXIT
 
-function create_snap_request_mrg_flt_ml() {
+function create_snap_request_mrg_flt_ml_sbs() {
 
-#function call: create_snap_request_mrg_flt_ml "${inputfilesDIM[@]}" "${demType}" "${polarisation}" "${nAzLooks}" "${nRgLooks}" "${output_Mrg_Flt_Ml}"      
+#function call: create_snap_request_mrg_flt_ml_sbs "${inputfilesDIM[@]}" "${demType}" "${polarisation}" "${nAzLooks}" "${nRgLooks}" "${output_Mrg_Flt_Ml}" "${performPhaseFiltering}" "${performSubset}" "${SubsetBoundingBox}" "${output_subset}"
 
     # function which creates the actual request from
     # a template and returns the path to the request
-  
-    # get number of inputs    
+
+    # get number of inputs
     inputNum=$#
-    
+
     #conversion of first input to array of strings nad get all the remaining input
     local -a inputfiles
     local demType
     local polarisation
-    local nLooks
+    local nAzLooks
+    local nRgLooks
     local output_Mrg_Flt_Ml
- 
+    local performPhaseFiltering
+    local performSubset
+    local SubsetBoundingBox
+    local output_subset
+    
+
+    # check on number of inputs
+    if [ "$inputNum" -ne "12" ] ; then
+        return ${SNAP_REQUEST_ERROR}
+    fi
+
     # first input file always equal to the first function input
     inputfiles+=("$1")
-    
-    if [ "$inputNum" -gt "8" ] || [ "$inputNum" -lt "6" ]; then
-        return ${SNAP_REQUEST_ERROR}
-    elif [ "$inputNum" -eq "6" ]; then
-        demType=$2
-        polarisation=$3
-        nAzLooks=$4
-	nRgLooks=$5
-        output_Mrg_Flt_Ml=$6
-    elif [ "$inputNum" -eq "7" ]; then
-        inputfiles+=("$2")
-        demType=$3
-        polarisation=$4
-        nAzLooks=$5
-	nRgLooks=$6
-        output_Mrg_Flt_Ml=$7
-    elif [ "$inputNum" -eq "8" ]; then
-        inputfiles+=("$2")
-        inputfiles+=("$3")
-        demType=$4
-        polarisation=$5
-        nAzLooks=$6
-        nRgLooks=$7
-        output_Mrg_Flt_Ml=$8
-    fi
-    
-    local commentRead2Begin=""
-    local commentRead2End=""
-    local commentRead3Begin=""
-    local commentRead3End=""
-    local commentMergeBegin=""
-    local commentMergeEnd=""
-    local commentMergeSource3Begin=""
-    local commentMergeSource3End=""
-    local commentRead1SourceBegin=""
-    local commentRead1SourceEnd=""
-    
+    inputfiles+=("$2")
+    inputfiles+=("$3")
+    demType=$4
+    polarisation=$5
+    nAzLooks=$6
+    nRgLooks=$7
+    output_Mrg_Flt_Ml=$8
+    performPhaseFiltering=$9
+    performSubset=${10}
+    SubsetBoundingBox=${11}
+    output_subset=${12}
+
+    local commentFltBegin=""
+    local commentFltEnd=""
+    local commentWriteMlSourceBegin=""
+    local commentWriteMlSourceEnd=""
+    local commentSbsBegin=""
+    local commentSbsEnd=""
+
     local beginCommentXML="<!--"
     local endCommentXML="-->"
 
-    # here is the logic to enable the proper snap steps dependent on the number of inputs
+    # here is the logic to enable the proper snap steps dependent on inputs
     inputFilesNum=${#inputfiles[@]}
 
-    if [ "$inputFilesNum" -gt "3" ] || [ "$inputFilesNum" -lt "1" ]; then
-        return ${SNAP_REQUEST_ERROR}
-    elif [ "$inputFilesNum" -eq "1" ]; then
-    	commentMergeBegin="${beginCommentXML}"
-        commentMergeEnd="${endCommentXML}"
-        commentRead2Begin="${beginCommentXML}"
-        commentRead2End="${endCommentXML}"
-        commentRead3Begin="${beginCommentXML}"
-        commentRead3End="${endCommentXML}"
-    elif [ "$inputFilesNum" -eq "2" ]; then
-        commentRead1SourceBegin="${beginCommentXML}"
-        commentRead1SourceEnd="${endCommentXML}"
-        commentRead3Begin="${beginCommentXML}"
-        commentRead3End="${endCommentXML}"
-        commentMergeSource3Begin="${beginCommentXML}"
-        commentMergeSource3End="${endCommentXML}"
-    elif [ "$inputFilesNum" -eq "3" ]; then
-        commentRead1SourceBegin="${beginCommentXML}"
-        commentRead1SourceEnd="${endCommentXML}"
-    fi    
+    if [ "${performPhaseFiltering}" = true ]; then
+        commentDInSARSourceBegin="${beginCommentXML}"
+        commentDInSARSourceEnd="${endCommentXML}"
+    else
+	commentFltBegin="${beginCommentXML}"
+	commentFltEnd="${endCommentXML}"
+    fi
+
+    if [ "${performSubset}" = false ]; then
+	commentSbsBegin="${beginCommentXML}"
+	commentSbsEnd="${endCommentXML}"
+    fi
 
     #sets the output filename
     snap_request_filename="${TMPDIR}/$( uuidgen ).xml"
@@ -146,37 +133,38 @@ function create_snap_request_mrg_flt_ml() {
       <formatName>BEAM-DIMAP</formatName>
     </parameters>
   </node>
-${commentRead2Begin}  <node id="Read(2)">
+  <node id="Read(2)">
     <operator>Read</operator>
     <sources/>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <file>${inputfiles[1]}</file>
       <formatName>BEAM-DIMAP</formatName>
     </parameters>
-  </node> ${commentRead2End}
-${commentRead3Begin}  <node id="Read(3)">
+  </node> 
+  <node id="Read(3)">
     <operator>Read</operator>
     <sources/>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <file>${inputfiles[2]}</file>
       <formatName>BEAM-DIMAP</formatName>
     </parameters>
-  </node> ${commentRead3End}
-${commentMergeBegin}  <node id="TOPSAR-Merge">
+  </node> 
+  <node id="TOPSAR-Merge">
     <operator>TOPSAR-Merge</operator>
     <sources>
       <sourceProduct refid="Read"/>
-      <sourceProduct.1 refid="Read(2)"/> 
-${commentMergeSource3Begin}      <sourceProduct.2 refid="Read(3)"/> ${commentMergeSource3End}
+      <sourceProduct.1 refid="Read(2)"/>
+      <sourceProduct.2 refid="Read(3)"/> 
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <selectedPolarisations>${polarisation}</selectedPolarisations>
     </parameters>
-  </node> ${commentMergeEnd}
+  </node> 
   <node id="Multilook">
     <operator>Multilook</operator>
     <sources>
-      <sourceProduct refid="GoldsteinPhaseFiltering"/>
+${commentFltBegin}      <sourceProduct refid="GoldsteinPhaseFiltering"/> ${commentFltEnd}
+${commentDInSARSourceBegin}      <sourceProduct refid="TopoPhaseRemoval"/> ${commentDInSARSourceEnd}
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <sourceBands/>
@@ -189,8 +177,7 @@ ${commentMergeSource3Begin}      <sourceProduct.2 refid="Read(3)"/> ${commentMer
   <node id="TopoPhaseRemoval">
     <operator>TopoPhaseRemoval</operator>
     <sources>
-${commentMergeBegin}      <sourceProduct refid="TOPSAR-Merge"/> ${commentMergeEnd}
-${commentRead1SourceBegin} <sourceProduct refid="Read"/> ${commentRead1SourceEnd}
+      <sourceProduct refid="TOPSAR-Merge"/> 
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <orbitDegree>3</orbitDegree>
@@ -201,10 +188,10 @@ ${commentRead1SourceBegin} <sourceProduct refid="Read"/> ${commentRead1SourceEnd
       <topoPhaseBandName>topo_phase</topoPhaseBandName>
     </parameters>
   </node>
-  <node id="GoldsteinPhaseFiltering">
+${commentFltBegin}  <node id="GoldsteinPhaseFiltering">
     <operator>GoldsteinPhaseFiltering</operator>
     <sources>
-      <sourceProduct refid="TopoPhaseRemoval"/> 
+      <sourceProduct refid="TopoPhaseRemoval"/>
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <alpha>1.0</alpha>
@@ -213,7 +200,7 @@ ${commentRead1SourceBegin} <sourceProduct refid="Read"/> ${commentRead1SourceEnd
       <useCoherenceMask>false</useCoherenceMask>
       <coherenceThreshold>0.2</coherenceThreshold>
     </parameters>
-  </node>
+  </node> ${commentFltEnd}
   <node id="Write">
     <operator>Write</operator>
     <sources>
@@ -224,6 +211,58 @@ ${commentRead1SourceBegin} <sourceProduct refid="Read"/> ${commentRead1SourceEnd
       <formatName>BEAM-DIMAP</formatName>
     </parameters>
   </node>
+${commentSbsBegin}   <node id="Subset">
+    <operator>Subset</operator>
+    <sources>
+      <sourceProduct refid="TopoPhaseRemoval"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <sourceBands/>
+      <region/>
+      <geoRegion>POLYGON ${SubsetBoundingBox}</geoRegion>
+      <subSamplingX>1</subSamplingX>
+      <subSamplingY>1</subSamplingY>
+      <fullSwath>false</fullSwath>
+      <tiePointGridNames/>
+      <copyMetadata>true</copyMetadata>
+    </parameters>
+  </node>
+  <node id="GoldsteinPhaseFilteringSbs">
+    <operator>GoldsteinPhaseFiltering</operator>
+    <sources>
+      <sourceProduct refid="Subset"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <alpha>1.0</alpha>
+      <FFTSizeString>64</FFTSizeString>
+      <windowSizeString>3</windowSizeString>
+      <useCoherenceMask>false</useCoherenceMask>
+      <coherenceThreshold>0.2</coherenceThreshold>
+    </parameters>
+  </node>
+  <node id="MultilookSbs">
+    <operator>Multilook</operator>
+    <sources>
+      <sourceProduct refid="GoldsteinPhaseFilteringSbs"/> 
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <sourceBands/>
+      <nRgLooks>${nRgLooks}</nRgLooks>
+      <nAzLooks>${nAzLooks}</nAzLooks>
+      <outputIntensity>false</outputIntensity>
+      <grSquarePixel>true</grSquarePixel>
+    </parameters>
+  </node>
+  <node id="WriteSbs">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="MultilookSbs"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${output_subset}.dim</file>
+      <formatName>BEAM-DIMAP</formatName>
+    </parameters>
+  </node> ${commentSbsEnd}
   <applicationData id="Presentation">
     <Description/>
     <node id="Read">
@@ -257,85 +296,6 @@ EOF
     } || return ${SNAP_REQUEST_ERROR}
 }
 
-function create_snap_request_subset() {
-
-#function call: create_snap_request_subset "${inputfileDIM}" "${SubsetBoundingBox}" "${output_subset}"      
-
-    # function which creates the actual request from
-    # a template and returns the path to the request
-    
-    # get number of inputs
-    inputNum=$#
-    # check on number of inputs
-    if [ "$inputNum" -ne "3" ] ; then
-        return ${SNAP_REQUEST_ERROR}
-    fi
-    
-    #get input
-    local inputfileDIM=$1
-    local SubsetBoundingBox=$2    
-    local output_subset=$3
-    
-    #sets the output filename
-    snap_request_filename="${TMPDIR}/$( uuidgen ).xml"
-
-   cat << EOF > ${snap_request_filename}
-<graph id="Graph">
-  <version>1.0</version>
-  <node id="Read">
-    <operator>Read</operator>
-    <sources/>
-    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <file>${inputfileDIM}</file>
-      <formatName>BEAM-DIMAP</formatName>
-    </parameters>
-  </node>
-  <node id="Subset">
-    <operator>Subset</operator>
-    <sources>
-      <sourceProduct refid="Read"/>
-    </sources>
-    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <sourceBands/>
-      <region/>
-      <geoRegion>POLYGON ${SubsetBoundingBox}</geoRegion>
-      <subSamplingX>1</subSamplingX>
-      <subSamplingY>1</subSamplingY>
-      <fullSwath>false</fullSwath>
-      <tiePointGridNames/>
-      <copyMetadata>true</copyMetadata>
-    </parameters>
-  </node>
-  <node id="Write">
-    <operator>Write</operator>
-    <sources>
-      <sourceProduct refid="Subset"/>
-    </sources>
-    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <file>${output_subset}.dim</file>
-      <formatName>BEAM-DIMAP</formatName>
-    </parameters>
-  </node>
-  <applicationData id="Presentation">
-    <Description/>
-    <node id="Write">
-	<displayPosition x="455.0" y="135.0"/>
-    </node>
-    <node id="Subset">
-      <displayPosition x="214.0" y="127.0"/>
-    </node>
-    <node id="Read">
-	<displayPosition x="37.0" y="134.0"/>
-    </node>
-  </applicationData>
-</graph>
-EOF
-
-    [ $? -eq 0 ] && {
-        echo "${snap_request_filename}"
-        return 0
-    } || return ${SNAP_REQUEST_ERROR}
-}
 
 function create_snap_request_terrainCorrection() {
 
@@ -364,24 +324,7 @@ function create_snap_request_terrainCorrection() {
     if [ "$mapProjection" = "WGS84(DD)" ]; then 
         mapProjectionSetting="$mapProjection"
     elif [ "$mapProjection" = "UTM / WGS84 (Automatic)" ]; then
-        mapProjectionSetting="PROJCS[&quot;UTM Zone 31 / World Geodetic System 1984&quot;, &#xd;
-  		GEOGCS[&quot;World Geodetic System 1984&quot;, &#xd;
-    		DATUM[&quot;World Geodetic System 1984&quot;, &#xd;
-      		SPHEROID[&quot;WGS 84&quot;, 6378137.0, 298.257223563, AUTHORITY[&quot;EPSG&quot;,&quot;7030&quot;]], &#xd;
-      		AUTHORITY[&quot;EPSG&quot;,&quot;6326&quot;]], &#xd;
-    		PRIMEM[&quot;Greenwich&quot;, 0.0, AUTHORITY[&quot;EPSG&quot;,&quot;8901&quot;]], &#xd;
-    		UNIT[&quot;degree&quot;, 0.017453292519943295], &#xd;
-    		AXIS[&quot;Geodetic longitude&quot;, EAST], &#xd;
-    		AXIS[&quot;Geodetic latitude&quot;, NORTH]], &#xd;
-  		PROJECTION[&quot;Transverse_Mercator&quot;], &#xd;
-  		PARAMETER[&quot;central_meridian&quot;, 3.0], &#xd;
-  		PARAMETER[&quot;latitude_of_origin&quot;, 0.0], &#xd;
-  		PARAMETER[&quot;scale_factor&quot;, 0.9996], &#xd;
-  		PARAMETER[&quot;false_easting&quot;, 500000.0], &#xd;
-  		PARAMETER[&quot;false_northing&quot;, 0.0], &#xd;
-  		UNIT[&quot;m&quot;, 1.0], &#xd;
-  		AXIS[&quot;Easting&quot;, EAST], &#xd;
-  		AXIS[&quot;Northing&quot;, NORTH]]"
+        mapProjectionSetting="AUTO:42001"
     else 
        return ${SNAP_REQUEST_ERROR}
     fi
@@ -539,24 +482,7 @@ function create_snap_request_terrainCorrection_individualBand() {
     if [ "$mapProjection" = "WGS84(DD)" ]; then
         mapProjectionSetting="$mapProjection"
     elif [ "$mapProjection" = "UTM / WGS84 (Automatic)" ]; then
-        mapProjectionSetting="PROJCS[&quot;UTM Zone 31 / World Geodetic System 1984&quot;, &#xd;
-                GEOGCS[&quot;World Geodetic System 1984&quot;, &#xd;
-                DATUM[&quot;World Geodetic System 1984&quot;, &#xd;
-                SPHEROID[&quot;WGS 84&quot;, 6378137.0, 298.257223563, AUTHORITY[&quot;EPSG&quot;,&quot;7030&quot;]], &#xd;
-                AUTHORITY[&quot;EPSG&quot;,&quot;6326&quot;]], &#xd;
-                PRIMEM[&quot;Greenwich&quot;, 0.0, AUTHORITY[&quot;EPSG&quot;,&quot;8901&quot;]], &#xd;
-                UNIT[&quot;degree&quot;, 0.017453292519943295], &#xd;
-                AXIS[&quot;Geodetic longitude&quot;, EAST], &#xd;
-                AXIS[&quot;Geodetic latitude&quot;, NORTH]], &#xd;
-                PROJECTION[&quot;Transverse_Mercator&quot;], &#xd;
-                PARAMETER[&quot;central_meridian&quot;, 3.0], &#xd;
-                PARAMETER[&quot;latitude_of_origin&quot;, 0.0], &#xd;
-                PARAMETER[&quot;scale_factor&quot;, 0.9996], &#xd;
-                PARAMETER[&quot;false_easting&quot;, 500000.0], &#xd;
-                PARAMETER[&quot;false_northing&quot;, 0.0], &#xd;
-                UNIT[&quot;m&quot;, 1.0], &#xd;
-                AXIS[&quot;Easting&quot;, EAST], &#xd;
-                AXIS[&quot;Northing&quot;, NORTH]]"
+        mapProjectionSetting="AUTO:42001"
     else
        return ${SNAP_REQUEST_ERROR}
     fi
@@ -819,28 +745,64 @@ function propertiesFileCratorPNG(){
          legendPng=$3
          legendPng_basename=$(basename "${legendPng}")
     fi 
-
 	
     # extraction coordinates from gdalinfo
-    # from a string like "Upper Left  (  13.0450832,  42.4802388) ( 13d 2'42.30"E, 42d28'48.86"N)" is extracted "13.0450832 42.4802388"
-    lon_lat_1=$( gdalinfo "${outputProductTif}" | grep "Lower Left"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
-    lon_lat_2=$( gdalinfo "${outputProductTif}" | grep "Upper Left"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
-    lon_lat_3=$( gdalinfo "${outputProductTif}" | grep "Upper Right"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
-    lon_lat_4=$( gdalinfo "${outputProductTif}" | grep "Lower Right"  | tr -s " " | sed 's#.*(\(.*\), \(.*\)) (.*#\1 \2#g' | sed 's#^ *##g' )
-	
+    # Example of displayed coordinates by gdalinfo: "Upper Left  (  12.1207888,  43.8139423) ( 12d 7'14.84"E, 43d48'50.19"N)"
+    # extraction takes into account the second row part "( 12d 7'14.84"E, 43d48'50.19"N)"  
+    poly_string="POLYGON(("
+    lower_left=""
+    declare -a corner_position_list=("Lower Left" "Upper Left" "Upper Right" "Lower Right")
+    for corner_position in "${corner_position_list[@]}"
+    do
+        # get longitude string
+        lon_test=$( gdalinfo "${outputProductTif}" | grep "${corner_position}"  | tr -s " " | sed 's#.*).*(\(.*\), \(.*\)).*#\1#g' | sed 's#^ *##g' )
+        # get latitude string
+        lat_test=$( gdalinfo "${outputProductTif}" | grep "${corner_position}"  | tr -s " " | sed 's#.*).*(\(.*\), \(.*\)).*#\2#g' | sed 's#^ *##g' )
+        #get each part of longitude coordinate to convert to decimal degrees
+        deg=$(echo "${lon_test}" | sed -n -e 's|^\(.*\)d.*|\1|p')
+        min=$(echo "${lon_test}" | sed -n -e 's|^.*d\(.*\)'\''.*|\1|p')
+        sec=$(echo "${lon_test}" | sed -n -e 's|^.*'\''\(.*\)".*|\1|p')
+        dir=$(echo "${lon_test}" | sed -n -e 's|^.*"\(.*\)|\1|p')
+        lon_decimal=$(echo "scale=7; $deg+($min/60)+($sec/3600)" | bc)
+        # if longitude is in west direction put minus sign
+        if [ "${dir}" = "W" ] ; then
+                lon_decimal=-$lon_decimal
+        fi
+        #get each part of latitude coordinate to convert to decimal degrees
+        deg=$(echo "${lat_test}" | sed -n -e 's|^\(.*\)d.*|\1|p')
+        min=$(echo "${lat_test}" | sed -n -e 's|^.*d\(.*\)'\''.*|\1|p')
+        sec=$(echo "${lat_test}" | sed -n -e 's|^.*'\''\(.*\)".*|\1|p')
+        dir=$(echo "${lat_test}" | sed -n -e 's|^.*"\(.*\)|\1|p')
+        lat_decimal=$(echo "scale=7; $deg+($min/60)+($sec/3600)" | bc)
+        # if latitude is in south direction put minus sign
+        if [ "${dir}" = "S" ] ; then
+                lat_decimal=-$lat_decimal
+        fi
+        # coordinate concatenation to build polygon string
+        poly_string="${poly_string} ${lon_decimal} ${lat_decimal},"
+        # save lower left coordinate
+        if [ "${corner_position}" == "Lower Left" ] ; then
+                lower_left="${lon_decimal} ${lat_decimal}"
+        fi
+        # concatenate lower left coordinates to close the polygon
+        if [ "${corner_position}" == "Lower Right" ] ; then
+                poly_string="${poly_string} ${lower_left} ))"
+        fi
+    done
+    
     outputProductPNG_basename=$(basename "${outputProductPNG}")
     properties_filename=${outputProductPNG}.properties
     if [ "$inputNum" -eq "2" ]; then	
 
 	cat << EOF > ${properties_filename}
 title=${outputProductPNG_basename}
-geometry=POLYGON(( ${lon_lat_1}, ${lon_lat_2}, ${lon_lat_3}, ${lon_lat_4}, ${lon_lat_1} ))
+geometry=${poly_string}
 EOF
     else
  	cat << EOF > ${properties_filename}
 image_url=./${legendPng_basename}
 title=${outputProductPNG_basename}
-geometry=POLYGON(( ${lon_lat_1}, ${lon_lat_2}, ${lon_lat_3}, ${lon_lat_4}, ${lon_lat_1} ))
+geometry=${poly_string}
 EOF
     fi
 
@@ -997,6 +959,13 @@ function main() {
     ciop-log "DEBUG" "Number of input products ${inputfilesNum}"
 
     # retrieve the parameters value from workflow or job default value
+    performPhaseFiltering="`ciop-getparam performPhaseFiltering`"
+
+    # log the value, it helps debugging.
+    # the log entry is available in the process stderr
+    ciop-log "DEBUG" "The performPhaseFiltering flag is set to ${performPhaseFiltering}"
+
+    # retrieve the parameters value from workflow or job default value
     nAzLooks="`ciop-getparam nAzLooks`"
 
     # log the value, it helps debugging.
@@ -1024,7 +993,6 @@ function main() {
        exit ${ERR_NLOOKS_NO_INT}
     fi
     
-    local performSubset
     # retrieve the parameters value from workflow or job default value
     SubsetBoundingBox="`ciop-getparam SubsetBoundingBox`"
 
@@ -1032,23 +1000,12 @@ function main() {
     # the log entry is available in the process stderr
     ciop-log "DEBUG" "The selected subset bounding box data is: ${SubsetBoundingBox}"
 
-    #check if empty: in such case the subset must be skipped 
-    #[ -z "${SubsetBoundingBox}" ] && performSubset=false || performSubset=true
-    
-    # log the value, it helps debugging.
-    # the log entry is available in the process stderr
-    #ciop-log "DEBUG" "The performSubset flag is set to ${performSubset}"
-
     # retrieve the parameters value from workflow or job default value
     performPhaseUnwrapping="`ciop-getparam performPhaseUnwrapping`"
 
     # log the value, it helps debugging.
     # the log entry is available in the process stderr
     ciop-log "DEBUG" "The performPhaseUnwrapping flag is set to ${performPhaseUnwrapping}"
-
-    #if [ "${performPhaseUnwrapping}" = true ] && [ "${performSubset}" = false ] ; then
-    #	exit ${ERR_UNWRAP_NO_SUBSET}
-    #fi
 
     # retrieve the parameters value from workflow or job default value
     demType="`ciop-getparam demtype`"
@@ -1102,9 +1059,9 @@ function main() {
     	cd - &> /dev/null
         
         # current swath and polarization, as for SNAP core IFG output product name
-        swath_pol=$( echo `basename ${retrieved}` | sed -n -e 's|target_\(.*\)_Split_Orb_Back_ESD_Ifg_Deb_DInSAR.zip|\1|p' )
+        swath_pol=$( echo `basename ${retrieved}` | sed -n -e 's|target_\(.*\)_Split_Orb_Back_ESD_Ifg_Deb.zip|\1|p' )
     	#current subswath IFG filename, as for snap split results
-    	ifgInput=$( ls "${INPUTDIR}"/target_"${swath_pol}"_Split_Orb_Back_ESD_Ifg_Deb_DInSAR.dim )
+    	ifgInput=$( ls "${INPUTDIR}"/target_"${swath_pol}"_Split_Orb_Back_ESD_Ifg_Deb.dim )
     	# check if the file was retrieved, if not exit with the error code $ERR_NODATA
    	[ $? -eq 0 ] && [ -e "${ifgInput}" ] || return ${ERR_NODATA}
 
@@ -1117,42 +1074,92 @@ function main() {
     done
 
     #get polarisation from input product name, as generated by the core IFG node
-    polarisation=$( basename "${inputfilesDIM[0]}"  | sed -n -e 's|target_IW._\(.*\)_Split_Orb_Back_ESD_Ifg_Deb_DInSAR.dim|\1|p' )
+    polarisation=$( basename "${inputfilesDIM[0]}"  | sed -n -e 's|target_IW._\(.*\)_Split_Orb_Back_ESD_Ifg_Deb.dim|\1|p' )
 
     # log the value, it helps debugging.
     # the log entry is available in the process stderr
     ciop-log "DEBUG" "Polarisation extracted from input product name: ${polarisation}"
 
-    ### MERGING - FILTERING - MULTILOOKING PROCESSING
+    ### SUBSETTING BOUNDING BOX DEFINITION FOR PHASE UNWRAPPING PROCESSING
+    local output_subset=${TMPDIR}/target_IW_${polarisation}_Split_Orb_Back_ESD_Ifg_Deb_DInSAR_Merge_Flt_ML_Sbs
+    local subsettingBox="-180,-56,180,60"
+    if [ "${performPhaseUnwrapping}" = true ] ; then
+        # bounding box from csv to space separated value
+        SubsetBoundingBox=$( echo "${SubsetBoundingBox}" | sed 's|,| |g' )
+        #convert subset bounding box into SNAP subsetting coordinates format
+        SubsetBoundingBoxArray=($SubsetBoundingBox)
+        lon_min_user="${SubsetBoundingBoxArray[0]}"
+        lat_min_user="${SubsetBoundingBoxArray[1]}"
+        lon_max_user="${SubsetBoundingBoxArray[2]}"
+        lat_max_user="${SubsetBoundingBoxArray[3]}"
+        # compute center of box
+        lon_center=$(echo "scale=4; ($lon_min_user+$lon_max_user)/2" | bc)
+        lat_center=$(echo "scale=4; ($lat_min_user+$lat_max_user)/2" | bc)
+        # fixed size in degrees of the box
+        local boxWidth="0.25"
+        # AOI limited by the fixed size
+        lon_min_box=$(echo "scale=4; $lon_center-($boxWidth/2)" | bc)
+        lon_max_box=$(echo "scale=4; $lon_center+($boxWidth/2)" | bc)
+        lat_min_box=$(echo "scale=4; $lat_center-($boxWidth/2)" | bc)
+        lat_max_box=$(echo "scale=4; $lat_center+($boxWidth/2)" | bc)
+        local lon_min=""
+        local lat_min=""
+        local lon_max=""
+        local lat_max=""
+        # if the user AOI is contained in the limited AOI get user AOI
+        if (( $(bc <<< "$lon_min_user > $lon_min_box") )) && (( $(bc <<< "$lon_max_user < $lon_max_box") )) && (( $(bc <<< "$lat_min_user > $lat_min_box") )) && (( $(bc <<< "$lat_max_user < $lat_max_box") ))
+        then
+                lon_min="${lon_min_user}"
+                lat_min="${lat_min_user}"
+                lon_max="${lon_max_user}"
+                lat_max="${lat_max_user}"
+        else
+        # otherwise get limited AOI
+                lon_min="${lon_min_box}"
+                lat_min="${lat_min_box}"
+                lon_max="${lon_max_box}"
+                lat_max="${lat_max_box}"
+        fi
+        subsettingBox="(("${lon_min}" "${lat_min}", "${lon_max}" "${lat_min}", "${lon_max}" "${lat_max}", "${lon_min}" "${lat_max}", "${lon_min}" "${lat_min}"))"
+
+        # log the value, it helps debugging.
+        # the log entry is available in the process stderr
+        ciop-log "INFO" "Applied subsettingBox = ${subsettingBox}"
+
+    fi
+
+    ### MERGING - TOPO PHASE REMOVAL - FILTERING - MULTILOOKING
     # output products filename
-    output_Mrg_Flt_Ml=${TMPDIR}/target_IW_${polarisation}_Split_Orb_Back_ESD_Ifg_Deb_DInSAR_Merge_Flt_ML
+    output_dinsar_mrg_flt_ml=${TMPDIR}/target_IW_${polarisation}_Split_Orb_Back_ESD_Ifg_Deb_DInSAR_Merge_Flt_ML
 
     # report activity in the log
-    ciop-log "INFO" "Preparing SNAP request file for merging, filtering and multilooking processing"
+    ciop-log "INFO" "Preparing SNAP request file for topographic phase removal, merging, filtering and multilooking"
 
     # prepare the SNAP request
-    SNAP_REQUEST=$( create_snap_request_mrg_flt_ml "${inputfilesDIM[@]}" "${demType}" "${polarisation}" "${nAzLooks}" "${nRgLooks}" "${output_Mrg_Flt_Ml}" )
+    SNAP_REQUEST=$( create_snap_request_mrg_flt_ml_sbs "${inputfilesDIM[@]}" "${demType}" "${polarisation}" "${nAzLooks}" "${nRgLooks}" "${output_dinsar_mrg_flt_ml}" "${performPhaseFiltering}" "${performPhaseUnwrapping}" "${subsettingBox}" "${output_subset}" )
     [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-    
+    [ $DEBUG -eq 1 ] && cat ${SNAP_REQUEST}    
     # report activity in the log
     ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
 
     # report activity in the log
-    ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for merging, filtering and multilooking processing"
+    ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for topographic phase removal, merging, filtering and multilooking"
 
     # invoke the ESA SNAP toolbox
     gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
     # check the exit code
     [ $? -eq 0 ] || return $ERR_SNAP
-
+    #clean product useless for next step
+    rm -rf ${INPUTDIR}/*.data ${INPUTDIR}/*.dim
+  
     ### AUX: get i,q and coh source bands suffix for useful the following processing 
     # get i and coh source bands name
     local i_source_band
     local coh_source_band
-    i_source_band=$( ls "${output_Mrg_Flt_Ml}".data/i_*.img )
+    i_source_band=$( ls "${output_dinsar_mrg_flt_ml}".data/i_*.img )
     # check if the file was retrieved, if not exit with the error code $ERR_NODATA
     [ $? -eq 0 ] && [ -e "${i_source_band}" ] || return ${ERR_NODATA}
-    coh_source_band=$( ls "${output_Mrg_Flt_Ml}".data/coh_*.img )
+    coh_source_band=$( ls "${output_dinsar_mrg_flt_ml}".data/coh_*.img )
     # check if the file was retrieved, if not exit with the error code $ERR_NODATA
     [ $? -eq 0 ] && [ -e "${coh_source_band}" ] || return ${ERR_NODATA}
     #get i and q bands suffix name for the output product
@@ -1164,7 +1171,7 @@ function main() {
 
     ### TERRAIN CORRECTION PROCESSING ON WRAPPED PHASE AND COHERENCE
     # input product name
-    inputfileDIM=${output_Mrg_Flt_Ml}.dim
+    inputfileDIM=${output_dinsar_mrg_flt_ml}.dim
 
     # report activity in the log
     ciop-log "INFO" "Preparing SNAP request file for terrain correction processing on wrapped phase and coherence"
@@ -1172,7 +1179,7 @@ function main() {
     # prepare the SNAP request
     SNAP_REQUEST=$( create_snap_request_terrainCorrection "${inputfileDIM}" "${demType}" "${pixelSpacingInMeter}" "${mapProjection}" "${i_q_band_suffix}" "${coh_band_suffix}" "${OUTPUTDIR}" )
     [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-
+    [ $DEBUG -eq 1 ] && cat ${SNAP_REQUEST}
     # report activity in the log
     ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
     
@@ -1240,85 +1247,20 @@ function main() {
     ciop-log "DEBUG" "Coherence properties file created: ${outputCohPNG_properties}"
 
     ### PHASE UNWRAPPING PROCESSING
-    local output_subset=""
     if [ "${performPhaseUnwrapping}" = true ] ; then
-        ## SUBSETTING
-	# input product name
-        inputfileDIM=${output_Mrg_Flt_Ml}.dim           
-    	# output products filename
-    	output_subset=${TMPDIR}/target_IW_${polarisation}_Split_Orb_Back_ESD_Ifg_Deb_DInSAR_Merge_Flt_ML_Sbs
-        # bounding box from csv to space separated value
-        SubsetBoundingBox=$( echo "${SubsetBoundingBox}" | sed 's|,| |g' )
-        #convert subset bounding box into SNAP subsetting coordinates format
-        SubsetBoundingBoxArray=($SubsetBoundingBox)
-        lon_min_user="${SubsetBoundingBoxArray[0]}"
-        lat_min_user="${SubsetBoundingBoxArray[1]}"
-        lon_max_user="${SubsetBoundingBoxArray[2]}"
-        lat_max_user="${SubsetBoundingBoxArray[3]}"
-        # compute center of box
-        lon_center=$(echo "scale=4; ($lon_min_user+$lon_max_user)/2" | bc)
-        lat_center=$(echo "scale=4; ($lat_min_user+$lat_max_user)/2" | bc)
-        # fixed size in degrees of the box
-        local boxWidth="0.25"
-        # AOI limited by the fixed size
-        lon_min_box=$(echo "scale=4; $lon_center-($boxWidth/2)" | bc)
-        lon_max_box=$(echo "scale=4; $lon_center+($boxWidth/2)" | bc)
-        lat_min_box=$(echo "scale=4; $lat_center-($boxWidth/2)" | bc)
-        lat_max_box=$(echo "scale=4; $lat_center+($boxWidth/2)" | bc)
-        local lon_min=""
-        local lat_min=""
-        local lon_max=""
-        local lat_max=""
-        # if the user AOI is contained in the limited AOI get user AOI
-  	if (( $(bc <<< "$lon_min_user > $lon_min_box") )) && (( $(bc <<< "$lon_max_user < $lon_max_box") )) && (( $(bc <<< "$lat_min_user > $lat_min_box") )) && (( $(bc <<< "$lat_max_user < $lat_max_box") ))
-	then
-    		lon_min="${lon_min_user}"
-		lat_min="${lat_min_user}"
-		lon_max="${lon_max_user}"
-		lat_max="${lat_max_user}"
-	else 
-	# otherwise get limited AOI
-		lon_min="${lon_min_box}"
-                lat_min="${lat_min_box}"
-                lon_max="${lon_max_box}"
-                lat_max="${lat_max_box}"
-	fi
-        subsettingBox="(("${lon_min}" "${lat_min}", "${lon_max}" "${lat_min}", "${lon_max}" "${lat_max}", "${lon_min}" "${lat_max}", "${lon_min}" "${lat_min}"))" 
-
-    	# log the value, it helps debugging.
-    	# the log entry is available in the process stderr
-    	ciop-log "INFO" "Applied subsettingBox = ${subsettingBox}"
-
-        # report activity in the log
-    	ciop-log "INFO" "Preparing SNAP request file for subsetting processing"
-
-    	# prepare the SNAP request
-    	SNAP_REQUEST=$( create_snap_request_subset "${inputfileDIM}" "${subsettingBox}" "${output_subset}" )
-    	[ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-
-    	# report activity in the log
-    	ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
-        
-    	# report activity in the log
-    	ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for subsetting processing"
-
-    	# invoke the ESA SNAP toolbox
-    	gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
-    	# check the exit code
-    	[ $? -eq 0 ] || return $ERR_SNAP
-        
+	# input wrapped phase DIM product
+        wrappedPhaseDIM=${output_subset}.dim
+        # output of snap export is always a folder with the same name of wrappedPhaseDIM, but without any .dim or .data extension
+        output_snaphuExport=${output_subset}
+	        
 	## SNAPHU CHAIN PROCESSING
 	# report activity in the log
         ciop-log "INFO" "Preparing SNAP request file for SNAPHU export"
         
-        # input wrapped phase DIM product
-        wrappedPhaseDIM=${output_subset}.dim	
-        # output of snap export is always a folder with the same name of wrappedPhaseDIM, but without any .dim or .data extension
-        output_snaphuExport=${output_subset}
         # prepare the SNAP request
         SNAP_REQUEST=$( create_snap_request_snaphuExport "${wrappedPhaseDIM}" )
         [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-       
+        [ $DEBUG -eq 1 ] && cat ${SNAP_REQUEST}
         # report activity in the log
         ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for SNAPHU export" 
 
@@ -1356,7 +1298,7 @@ function main() {
         # prepare the SNAP request
         SNAP_REQUEST=$( create_snap_request_snaphuImport_ph2disp "${wrappedPhaseDIM}" "${unwrappedPhaseSnaphuOutHDR}" "${output_snaphuImport}" )
         [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-
+	[ $DEBUG -eq 1 ] && cat ${SNAP_REQUEST}
         # report activity in the log
         ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
        
@@ -1376,7 +1318,7 @@ function main() {
         # prepare the SNAP request
         SNAP_REQUEST=$( create_snap_request_terrainCorrection_individualBand "${output_snaphuImportDIM}" "${demType}" "${pixelSpacingInMeter}" "${mapProjection}"  "${out_tc_phase}" )
         [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-
+	[ $DEBUG -eq 1 ] && cat ${SNAP_REQUEST}
         # report activity in the log
         ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
         
@@ -1420,7 +1362,7 @@ function main() {
         # prepare the SNAP request
         SNAP_REQUEST=$( create_snap_request_statsComputation "${outDisplacementTIF}" "${displacementSourceBand}" "${displacementStatsFile}" )
         [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-
+	[ $DEBUG -eq 1 ] && cat ${SNAP_REQUEST}
         # report activity in the log
         ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
 
@@ -1455,11 +1397,13 @@ function main() {
     ciop-publish -m "${OUTPUTDIR}"/*
 	
     # cleanup
-    rm -rf "${INPUTDIR}"/* "${TMPDIR}"/* "${OUTPUTDIR}"/* 
-    for index in `seq 0 $inputfilesNum`;
-    do
-    	hadoop dfs -rmr "${inputfiles[$index]}"     	
-    done
+    rm -rf "${INPUTDIR}"/* "${TMPDIR}"/* "${OUTPUTDIR}"/*
+    if [ $DEBUG -ne 1 ] ; then
+    	for index in `seq 0 $inputfilesNum`;
+    	do
+    		hadoop dfs -rmr "${inputfiles[$index]}"     	
+    	done
+    fi
 
     return ${SUCCESS}
 }
@@ -1469,6 +1413,7 @@ mkdir -p ${TMPDIR}/output
 export OUTPUTDIR=${TMPDIR}/output
 mkdir -p ${TMPDIR}/input
 export INPUTDIR=${TMPDIR}/input
+export DEBUG=0
 
 declare -a inputfiles
 
