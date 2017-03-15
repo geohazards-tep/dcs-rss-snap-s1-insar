@@ -302,7 +302,7 @@ function main() {
    # output products filenames
    masterSplittedBasename=$( basename $masterSplitted )
    swath_pol=$( echo $masterSplittedBasename | sed -n -e 's|target_\(.*\)_Split_Master.dim|\1|p' )
-   outputnameIfg=${OUTPUTDIR}/target_${swath_pol}_Split_Orb_Back_ESD_Ifg_Deb_DInSAR
+   outputnameIfg=${OUTPUTDIR}/target_${swath_pol}_Split_Orb_Back_ESD_Ifg_Deb
    outputnameIfgBasename=$( basename $outputnameIfg )
 
    # log the value, it helps debugging.
