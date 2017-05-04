@@ -158,8 +158,6 @@ function get_data() {
   enclosure=$(echo "${enclosure}" | tail -1)
 
   #download data and get data name
-  #local_file="$( echo ${enclosure} | ciop-copy -C rssGTEP:Pa554R55GTEP -f -U -O ${target} - 2> /dev/null )"
-  #local_file="$( echo ${enclosure} | ciop-copy -f -U -O ${target} - 2> /dev/null )"
   local_file="$( echo ${enclosure} | ciop-copy -f -U -O ${target} - 2> ${TMPDIR}/ciop_copy.stderr )"
   res=$?
   
