@@ -48,7 +48,7 @@ function create_snap_request_ifg() {
     local demType
     local cohWinAz
     local cohWinRg
-    local outputnameIfgTopoPhaseRemoved
+    local outputnameIfg
 
     mastername="$1"
     slavename="$2"
@@ -56,7 +56,7 @@ function create_snap_request_ifg() {
     demType="$4"
     cohWinAz="$5"
     cohWinRg="$6"
-    outputnameIfgTopoPhaseRemoved="$7"
+    outputnameIfg="$7"
 
     #sets the output filename
     snap_request_filename="${TMPDIR}/$( uuidgen ).xml"
@@ -151,32 +151,26 @@ function create_snap_request_ifg() {
       <sourceProduct refid="Back-Geocoding"/>
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <registrationWindowSize>512</registrationWindowSize>
-      <interpFactor>4</interpFactor>
-      <maxIteration>10</maxIteration>
-    </parameters>
-  </node>
-  <node id="TopoPhaseRemoval">
-    <operator>TopoPhaseRemoval</operator>
-    <sources>
-      <sourceProduct refid="TOPSAR-Deburst"/>
-    </sources>
-    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <orbitDegree>3</orbitDegree>
-      <demName>${demType}</demName>
-      <externalDEMFile/>
-      <externalDEMNoDataValue>0.0</externalDEMNoDataValue>
-      <tileExtensionPercent>100</tileExtensionPercent>
-      <topoPhaseBandName>topo_phase</topoPhaseBandName>
+      <fineWinWidthStr>512</fineWinWidthStr>
+      <fineWinHeightStr>512</fineWinHeightStr>
+      <fineWinAccAzimuth>16</fineWinAccAzimuth>
+      <fineWinAccRange>16</fineWinAccRange>
+      <fineWinOversampling>128</fineWinOversampling>
+      <xCorrThreshold>0.1</xCorrThreshold>
+      <cohThreshold>0.15</cohThreshold>
+      <numBlocksPerOverlap>10</numBlocksPerOverlap>
+      <useSuppliedShifts>false</useSuppliedShifts>
+      <overallAzimuthShift>0.0</overallAzimuthShift>
+      <overallRangeShift>0.0</overallRangeShift>
     </parameters>
   </node>
   <node id="Write">
     <operator>Write</operator>
     <sources>
-      <sourceProduct refid="TopoPhaseRemoval"/>
+      <sourceProduct refid="TOPSAR-Deburst"/>
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <file>${outputnameIfgTopoPhaseRemoved}.dim</file>
+      <file>${outputnameIfg}.dim</file>
       <formatName>BEAM-DIMAP</formatName>
     </parameters>
   </node>
@@ -205,9 +199,6 @@ function create_snap_request_ifg() {
     </node>
     <node id="Enhanced-Spectral-Diversity">
       <displayPosition x="241.0" y="123.0"/>
-    </node>
-    <node id="TopoPhaseRemoval">
-      <displayPosition x="667.0" y="123.0"/>
     </node>
     <node id="Write">
       <displayPosition x="743.0" y="197.0"/>
@@ -311,16 +302,16 @@ function main() {
    # output products filenames
    masterSplittedBasename=$( basename $masterSplitted )
    swath_pol=$( echo $masterSplittedBasename | sed -n -e 's|target_\(.*\)_Split_Master.dim|\1|p' )
-   outputnameIfgTopoPhaseRemoved=${OUTPUTDIR}/target_${swath_pol}_Split_Orb_Back_ESD_Ifg_Deb_DInSAR
-   outputnameIfgTopoPhaseRemovedBasename=$( basename $outputnameIfgTopoPhaseRemoved )
+   outputnameIfg=${OUTPUTDIR}/target_${swath_pol}_Split_Orb_Back_ESD_Ifg_Deb
+   outputnameIfgBasename=$( basename $outputnameIfg )
 
    # log the value, it helps debugging.
    # the log entry is available in the process stderr
-   ciop-log "DEBUG" "The output product name is: ${outputnameIfgTopoPhaseRemoved}"
+   ciop-log "DEBUG" "The output product name is: ${outputnameIfg}"
 
    #prepare snap request file for input splitting
    # prepare the SNAP request
-   SNAP_REQUEST=$( create_snap_request_ifg "${masterSplitted}" "${slaveSplitted}" "${orbitType}" "${demType}" "${cohWinAz}" "${cohWinRg}" "${outputnameIfgTopoPhaseRemoved}" )
+   SNAP_REQUEST=$( create_snap_request_ifg "${masterSplitted}" "${slaveSplitted}" "${orbitType}" "${demType}" "${cohWinAz}" "${cohWinRg}" "${outputnameIfg}" )
    [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
 
    # report activity in the log
@@ -330,19 +321,19 @@ function main() {
    ciop-log "INFO" "Invoking SNAP-gpt Interferogram using the generated request file"
    
    # invoke the ESA SNAP toolbox
-   gpt ${SNAP_REQUEST} &> /dev/null
+   gpt ${SNAP_REQUEST} -c "${CACHE_SIZE}" &> /dev/null
 
    # check the exit code
    [ $? -eq 0 ] || return $ERR_SNAP
 
    # compress splitting results for the current subswath
    cd ${OUTPUTDIR}
-   zip -r ${outputnameIfgTopoPhaseRemovedBasename}.zip ${outputnameIfgTopoPhaseRemovedBasename}.data ${outputnameIfgTopoPhaseRemovedBasename}.dim  &> /dev/null
+   zip -r ${outputnameIfgBasename}.zip ${outputnameIfgBasename}.data ${outputnameIfgBasename}.dim  &> /dev/null
    cd - &> /dev/null
 
    # publish the ESA SNAP result
-   ciop-log "INFO" "Publishing generated Interferogram with Topographic Phase Removed"
-   ciop-publish  ${outputnameIfgTopoPhaseRemoved}.zip    
+   ciop-log "INFO" "Publishing generated Interferogram"
+   ciop-publish  ${outputnameIfg}.zip    
 
    # cleanup
    rm -rf ${SNAP_REQUEST} "${INPUTDIR}"/* "${OUTPUTDIR}"/*  
