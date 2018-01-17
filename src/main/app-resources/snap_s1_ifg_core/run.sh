@@ -321,7 +321,7 @@ function main() {
    ciop-log "INFO" "Invoking SNAP-gpt Interferogram using the generated request file"
    
    # invoke the ESA SNAP toolbox
-   gpt ${SNAP_REQUEST} -c "${CACHE_SIZE}" &> /dev/null
+   gpt ${SNAP_REQUEST} -c "${CACHE_SIZE}"
 
    # check the exit code
    [ $? -eq 0 ] || return $ERR_SNAP
