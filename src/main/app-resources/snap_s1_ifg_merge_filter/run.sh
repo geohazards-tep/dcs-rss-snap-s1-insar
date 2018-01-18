@@ -43,9 +43,10 @@ function cleanExit ()
     esac
 
    [ ${retval} -ne 0 ] && ciop-log "ERROR" "Error ${retval} - ${msg}, processing aborted" || ciop-log "INFO" "${msg}"
-   if [ $DEBUG -ne 1 ] ; then
-	[ ${retval} -ne 0 ] && hadoop dfs -rmr $(dirname "${inputfiles[0]}")
-   fi
+   # This direct access is not allowed with the multi-tenant cluster
+   #if [ $DEBUG -ne 1 ] ; then
+   #	[ ${retval} -ne 0 ] && hadoop dfs -rmr $(dirname "${inputfiles[0]}")
+   #fi
    exit ${retval}
 }
 
@@ -1398,12 +1399,13 @@ function main() {
 	
     # cleanup
     rm -rf "${INPUTDIR}"/* "${TMPDIR}"/* "${OUTPUTDIR}"/*
-    if [ $DEBUG -ne 1 ] ; then
-    	for index in `seq 0 $inputfilesNum`;
-    	do
-    		hadoop dfs -rmr "${inputfiles[$index]}"     	
-    	done
-    fi
+    # This direct access is not allowed with the multi-tenant cluster
+    #if [ $DEBUG -ne 1 ] ; then
+    #	for index in `seq 0 $inputfilesNum`;
+    #	do
+    #		hadoop dfs -rmr "${inputfiles[$index]}"     	
+    #	done
+    #fi
 
     return ${SUCCESS}
 }
