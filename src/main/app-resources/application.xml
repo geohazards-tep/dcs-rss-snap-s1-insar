@@ -77,7 +77,8 @@
 					<default>false</default>
 			</options>
 		 </parameter>
-                 <parameter id="SubsetBoundingBox" title="Subset Bounding Box for Unwrapping" abstract="Define the area of interest for the Phase Unwrapping processing [lon_min,lat_min,lon_max,lat_max]. NOTE: Area is limited to 0.25*0.25 degrees around the center." scope="runtime" type="BoundingBoxData" minOccurs="1" maxOccurs="1"></parameter>
+         <!--<parameter id="SubsetBoundingBox" title="Subset Bounding Box for Unwrapping" abstract="Define the area of interest for the Phase Unwrapping processing [lon_min,lat_min,lon_max,lat_max]. NOTE: Area is limited to 0.25*0.25 degrees around the center." scope="runtime" type="BoundingBoxData" minOccurs="1" maxOccurs="1"></parameter>-->
+         <parameter id="SubsetBoundingBox" title="Subset Bounding Box for Unwrapping" abstract="Define the area of interest for the Phase Unwrapping processing [lon_min,lat_min,lon_max,lat_max]. NOTE: Area is limited to 0.25*0.25 degrees around the center." scope="runtime" minOccurs="1" maxOccurs="1"></parameter>
          <parameter id="pixelSpacingInMeter" title="Pixel spacing in meters" abstract="Define the pixel spacing for the Terrain-Correction processing [meters]" scope="runtime" maxOccurs="1">15.0</parameter>
          <parameter id="demtype" title="DEM type" abstract="Define the DEM source for the Back-Geocoding Coregistration, Topographic Phase Removal and Terrain Correction processing. NOTE: SRTM valid in the [-56 deg,+60 deg] range of latitudes." scope="test" maxOccurs="1">
                 <options>
