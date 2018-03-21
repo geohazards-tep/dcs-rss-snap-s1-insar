@@ -19,6 +19,7 @@ ERR_UNWRAP_NO_SUBSET=8
 ERR_PROPERTIES_FILE_CREATOR=9
 ERR_PCONVERT=10
 ERR_COLORBAR_CREATOR=11
+ERR_CONVERT=12
 
 # add a trap to exit gracefully
 function cleanExit ()
@@ -39,13 +40,14 @@ function cleanExit ()
         ${ERR_PROPERTIES_FILE_CREATOR})	msg="Could not create the .properties file";;
         ${ERR_PCONVERT})                msg="PCONVERT failed to process";;
         ${ERR_COLORBAR_CREATOR})        msg="Failed during colorbar creation";;
+        ${ERR_CONVERT})                 msg="Failed during full resolution GeoTIFF creation";;
         *)                        	msg="Unknown error";;
     esac
 
    [ ${retval} -ne 0 ] && ciop-log "ERROR" "Error ${retval} - ${msg}, processing aborted" || ciop-log "INFO" "${msg}"
-   # This part is not allowed in the multi-tenant cluster
+   # This direct access is not allowed with the multi-tenant cluster
    #if [ $DEBUG -ne 1 ] ; then
-   #[ ${retval} -ne 0 ] && hadoop dfs -rmr $(dirname "${inputfiles[0]}")
+   #	[ ${retval} -ne 0 ] && hadoop dfs -rmr $(dirname "${inputfiles[0]}")
    #fi
    exit ${retval}
 }
@@ -729,120 +731,41 @@ EOF
     } || return ${SNAP_REQUEST_ERROR}
 }
 
-function propertiesFileCratorPNG(){
-#function call: propertiesFileCratorPNG "${outputProductTif}" "${outputProductPNG}" "${legendPng}"
 
+function propertiesFileCratorTIF_IFG(){
+# function call propertiesFileCratorTIF_IFG "${outputProductTif}" "${description}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${pixelSpacing}" "${SNAP_VERSION}" "${processingTime}"
     # get number of inputs
     inputNum=$#
     # check on number of inputs
-    if [ "$inputNum" -lt "2" ] || [ "$inputNum" -gt "3" ]; then
-        return ${ERR_PROPERTIES_FILE_CREATOR}
-    fi
-
-    # function which creates the .properties file to attach to the output png file
-    local outputProductTif=$1
-    local outputProductPNG=$2
-    if [ "$inputNum" -eq "3" ]; then
-         legendPng=$3
-         legendPng_basename=$(basename "${legendPng}")
-    fi 
-	
-    # extraction coordinates from gdalinfo
-    # Example of displayed coordinates by gdalinfo: "Upper Left  (  12.1207888,  43.8139423) ( 12d 7'14.84"E, 43d48'50.19"N)"
-    # extraction takes into account the second row part "( 12d 7'14.84"E, 43d48'50.19"N)"  
-    poly_string="POLYGON(("
-    lower_left=""
-    declare -a corner_position_list=("Lower Left" "Upper Left" "Upper Right" "Lower Right")
-    for corner_position in "${corner_position_list[@]}"
-    do
-        # get longitude string
-        lon_test=$( gdalinfo "${outputProductTif}" | grep "${corner_position}"  | tr -s " " | sed 's#.*).*(\(.*\), \(.*\)).*#\1#g' | sed 's#^ *##g' )
-        # get latitude string
-        lat_test=$( gdalinfo "${outputProductTif}" | grep "${corner_position}"  | tr -s " " | sed 's#.*).*(\(.*\), \(.*\)).*#\2#g' | sed 's#^ *##g' )
-        #get each part of longitude coordinate to convert to decimal degrees
-        deg=$(echo "${lon_test}" | sed -n -e 's|^\(.*\)d.*|\1|p')
-        min=$(echo "${lon_test}" | sed -n -e 's|^.*d\(.*\)'\''.*|\1|p')
-        sec=$(echo "${lon_test}" | sed -n -e 's|^.*'\''\(.*\)".*|\1|p')
-        dir=$(echo "${lon_test}" | sed -n -e 's|^.*"\(.*\)|\1|p')
-        lon_decimal=$(echo "scale=7; $deg+($min/60)+($sec/3600)" | bc)
-        # if longitude is in west direction put minus sign
-        if [ "${dir}" = "W" ] ; then
-                lon_decimal=-$lon_decimal
-        fi
-        #get each part of latitude coordinate to convert to decimal degrees
-        deg=$(echo "${lat_test}" | sed -n -e 's|^\(.*\)d.*|\1|p')
-        min=$(echo "${lat_test}" | sed -n -e 's|^.*d\(.*\)'\''.*|\1|p')
-        sec=$(echo "${lat_test}" | sed -n -e 's|^.*'\''\(.*\)".*|\1|p')
-        dir=$(echo "${lat_test}" | sed -n -e 's|^.*"\(.*\)|\1|p')
-        lat_decimal=$(echo "scale=7; $deg+($min/60)+($sec/3600)" | bc)
-        # if latitude is in south direction put minus sign
-        if [ "${dir}" = "S" ] ; then
-                lat_decimal=-$lat_decimal
-        fi
-        # coordinate concatenation to build polygon string
-        poly_string="${poly_string} ${lon_decimal} ${lat_decimal},"
-        # save lower left coordinate
-        if [ "${corner_position}" == "Lower Left" ] ; then
-                lower_left="${lon_decimal} ${lat_decimal}"
-        fi
-        # concatenate lower left coordinates to close the polygon
-        if [ "${corner_position}" == "Lower Right" ] ; then
-                poly_string="${poly_string} ${lower_left} ))"
-        fi
-    done
-    
-    outputProductPNG_basename=$(basename "${outputProductPNG}")
-    properties_filename=${outputProductPNG}.properties
-    if [ "$inputNum" -eq "2" ]; then	
-
-	cat << EOF > ${properties_filename}
-title=${outputProductPNG_basename}
-geometry=${poly_string}
-EOF
-    else
- 	cat << EOF > ${properties_filename}
-image_url=./${legendPng_basename}
-title=${outputProductPNG_basename}
-geometry=${poly_string}
-EOF
-    fi
-
-    [ $? -eq 0 ] && {
-        echo "${properties_filename}"
-        return 0
-    } || return ${ERR_PROPERTIES_FILE_CREATOR}
-
-}
-
-function propertiesFileCratorTIF(){
-# function call propertiesFileCratorTIF "${outputPhaseTIF}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${SNAP_VERSION}" "${processingTime}"
-    # get number of inputs
-    inputNum=$#
-    # check on number of inputs
-    if [ "$inputNum" -ne "7" ]; then
+    if [ "$inputNum" -ne "9" ]; then
         return ${ERR_PROPERTIES_FILE_CREATOR}
     fi
 
     # function which creates the .properties file to attach to the output tif file
     local outputProductTif=$1
-    local dateStart=$2
-    local dateStop=$3
-    local dateDiff_days=$4 
-    local polarisation=$5
-    local snapVersion=$6
-    local processingTime=$7
+    local description=$2
+    local dateStart=$3
+    local dateStop=$4
+    local dateDiff_days=$5
+    local polarisation=$6
+    local pixelSpacing=$7
+    local snapVersion=$8
+    local processingTime=$9
 
     outputProductTIF_basename=$(basename "${outputProductTif}")
     properties_filename=${outputProductTif}.properties
 
     cat << EOF > ${properties_filename}
-title=${outputProductTIF_basename}
-dateMaster=${dateStart}
-dateSlave=${dateStop}
-dateDiff_days=${dateDiff_days}
-polarisation=${polarisation}
-snapVersion=${snapVersion}
-processingTime=${processingTime}
+Title=${outputProductTIF_basename}
+Service\ Name=SNAP-InSAR
+Description=${description}
+Master\ Date=${dateStart}
+Slave\ Date=${dateStop}
+Time\ Separation\ \(days\)=${dateDiff_days}
+Polarisation=${polarisation}
+Pixel\ Spacing=${pixelSpacing}
+Snap\ Version=${snapVersion}
+Processing\ Time=${processingTime}
 EOF
 
     [ $? -eq 0 ] && {
@@ -852,19 +775,21 @@ EOF
 
 }
 
+
 function create_snap_request_statsComputation(){
-# function call: create_snap_request_statsComputation $tiffProduct $sourceBandName $outputStatsFile
+# function call: create_snap_request_statsComputation $tiffProduct $sourceBandName $outputStatsFile $pc_csv_list
     # get number of inputs
     inputNum=$#
     # check on number of inputs
-    if [ "$inputNum" -ne "3" ] ; then
+    if [ "$inputNum" -lt "3" ] || [ "$inputNum" -gt "4" ]; then
         return ${SNAP_REQUEST_ERROR}
     fi
-     
+
     local tiffProduct=$1
     local sourceBandName=$2
     local outputStatsFile=$3
-
+    local pc_csv_list=""
+    [ "$inputNum" -eq "3" ] && pc_csv_list="90,95" || pc_csv_list=$4
     #sets the output filename
     snap_request_filename="${TMPDIR}/$( uuidgen ).xml"
 
@@ -890,8 +815,8 @@ function create_snap_request_statsComputation(){
       </bandConfigurations>
       <outputShapefile></outputShapefile>
       <outputAsciiFile>${outputStatsFile}</outputAsciiFile>
-      <percentiles>90,95</percentiles>
-      <accuracy>3</accuracy>
+      <percentiles>${pc_csv_list}</percentiles>
+      <accuracy>4</accuracy>
     </parameters>
   </node>
 </graph>
@@ -905,47 +830,233 @@ EOF
 }
 
 
+# function that put value labels (assumed to be 5 vlaues between min and max included)
+# to the colorbar legend input depending on the provided min and max values
 function colorbarCreator(){
-# function call: colorbarCreator $inputColorbar $statsFile $outputColorbar
+# function call: colorbarCreator $inputColorbar $colorbarDescription $minimum $maximum $outputColorbar
 
-    #function that put value labels to the JET colorbar legend input depending on the
-    # provided product statistics   
+# get number of inputs
+inputNum=$#
+# check on number of inputs
+if [ "$inputNum" -ne "5" ] ; then
+    return ${ERR_COLORBAR_CREATOR}
+fi
 
-     # get number of inputs
-    inputNum=$#
-    # check on number of inputs
-    if [ "$inputNum" -ne "3" ] ; then
-        return ${ERR_COLORBAR_CREATOR}
-    fi
-    
-    #get input
-    local inputColorbar=$1
-    local statsFile=$2
-    local outputColorbar=$3
+#get input
+local inputColorbar=$1
+local colorbarDescription=$2
+local minimum=$3
+local maximum=$4
+local outputColorbar=$5
 
-    # get maximum from stats file
-    maximum=$(cat "${statsFile}" | grep world | tr '\t' ' ' | tr -s ' ' | cut -d ' ' -f 5)
-    #get minimum from stats file
-    minimum=$(cat "${statsFile}" | grep world | tr '\t' ' ' | tr -s ' ' | cut -d ' ' -f 7)
-    #compute colorbar values
-    rangeWidth=$(echo "scale=5; ${maximum} - ${minimum}" | bc )
-    red=$(echo "scale=5; $minimum" | bc | awk '{printf "%.2f", $0}')
-    yellow=$(echo "scale=5; $minimum+$rangeWidth/4" | bc | awk '{printf "%.2f", $0}')
-    green=$(echo "scale=5; $minimum+$rangeWidth/2" | bc | awk '{printf "%.2f", $0}')
-    cyan=$(echo "scale=5; $minimum+$rangeWidth*3/4" | bc | awk '{printf "%.2f", $0}')    
-    blue=$(echo "scale=5; $maximum" | bc | awk '{printf "%.2f", $0}')
-    
-    #add color values
-    convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 7,100 \"$red\" " $inputColorbar $outputColorbar
-    convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 76,100 \"$yellow\" " $outputColorbar $outputColorbar
-    convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 147,100 \"$green\" " $outputColorbar $outputColorbar 
-    convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 212,100 \"$cyan\" " $outputColorbar $outputColorbar
-    convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 278,100 \"$blue\" " $outputColorbar $outputColorbar
+#compute colorbar values
+rangeWidth=$(echo "scale=5; $maximum-($minimum)" | bc )
+val_1=$(echo "scale=5; $minimum" | bc | awk '{printf "%.2f", $0}')
+val_2=$(echo "scale=5; $minimum+$rangeWidth/4" | bc | awk '{printf "%.2f", $0}')
+val_3=$(echo "scale=5; $minimum+$rangeWidth/2" | bc | awk '{printf "%.2f", $0}')
+val_4=$(echo "scale=5; $minimum+$rangeWidth*3/4" | bc | awk '{printf "%.2f", $0}')
+val_5=$(echo "scale=5; $maximum" | bc | awk '{printf "%.2f", $0}')
 
-    return 0
+# add clolrbar description
+convert -pointsize 15 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 9,22 \"$colorbarDescription\" " $inputColorbar $outputColorbar
+# add color values
+convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 7,100 \"$val_1\" " $outputColorbar $outputColorbar
+convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 76,100 \"$val_2\" " $outputColorbar $outputColorbar
+convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 147,100 \"$val_3\" " $outputColorbar $outputColorbar
+convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 212,100 \"$val_4\" " $outputColorbar $outputColorbar
+convert -pointsize 13 -font "${_CIOP_APPLICATION_PATH}/gpt/LucidaTypewriterBold.ttf" -fill black -draw "text 278,100 \"$val_5\" " $outputColorbar $outputColorbar
+
+return 0
 
 }
 
+
+# function that creates a full resolution tif product that can be correctly shown on GEP
+function visualization_product_creator_one_band(){
+# function call visualization_product_creator_one_band ${inputTif} ${sourceBandName} ${min_val} ${max_val} ${outputTif}
+inputTif=$1
+sourceBandName=$2
+min_val=$3
+max_val=$4
+outputTif=$5
+# check if min_val and max_val are absolute values or percentiles
+# pc values are assumed like pc<value> with <value> it's an integer between 0 and 100
+pc_test=$(echo "${min_val}" | grep "pc")
+[ "${pc_test}" = "" ] && pc_test="false"
+# extract coefficient for linear stretching (min and max out are related to a tiff with 8bit uint precision, 0 is kept for alpha band)
+min_out=1
+max_out=255
+if [ "${pc_test}" = "false" ]; then
+# min_val and max_val are absolute values
+    $_CIOP_APPLICATION_PATH/snap_s1_ifg_merge_filter/linearEquationCoefficients.py ${min_val} ${max_val} ${min_out} ${max_out} > ab.txt
+else
+# min_val and max_val are percentiles
+    #min max percentiles to be used in histogram stretching
+    pc_min=$( echo $min_val | sed -n -e 's|^.*pc\(.*\)|\1|p')
+    pc_max=$( echo $max_val | sed -n -e 's|^.*pc\(.*\)|\1|p')
+    pc_min_max=$( extract_pc1_pc2 $inputTif $sourceBandName $pc_min $pc_max )
+    [ $? -eq 0 ] || return ${ERR_CONVERT}
+    $_CIOP_APPLICATION_PATH/snap_s1_ifg_merge_filter/linearEquationCoefficients.py ${pc_min_max} ${min_out} ${max_out} > ab.txt
+fi
+a=$( cat ab.txt | grep a | sed -n -e 's|^.*a=\(.*\)|\1|p')
+b=$( cat ab.txt | grep b |  sed -n -e 's|^.*b=\(.*\)|\1|p')
+
+ciop-log "INFO" "Linear stretching for image: $inputTif"
+SNAP_REQUEST=$( create_snap_request_linear_stretching "${inputTif}" "${sourceBandName}" "${a}" "${b}" "${min_out}" "${max_out}" "temp-outputfile.tif" )
+[ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
+# invoke the ESA SNAP toolbox
+gpt ${SNAP_REQUEST} -c "${CACHE_SIZE}" &> /dev/null
+# check the exit code
+[ $? -eq 0 ] || return $ERR_SNAP
+
+ciop-log "INFO" "Reprojecting and alpha band addition to image: $inputTif"
+gdalwarp -ot Byte -srcnodata 0 -dstnodata 0 -dstalpha -co "TILED=YES" -co "BLOCKXSIZE=512" -co "BLOCKYSIZE=512" -co "ALPHA=YES" -t_srs EPSG:3857 temp-outputfile.tif ${outputTif} &> /dev/null
+returnCode=$?
+
+[ $returnCode -eq 0 ] || return ${ERR_CONVERT}
+rm -f temp-outputfile*
+#add overlay
+gdaladdo -r average ${outputTif} 2 4 8 16 &> /dev/null
+returnCode=$?
+[ $returnCode -eq 0 ] || return ${ERR_CONVERT}
+# echo of input min max values (usefule mainly when pc_test=true but provided in both cases)
+if [ "${pc_test}" = "false" ]; then
+    echo ${min_val} ${max_val}
+else
+    echo ${pc_min_max}
+fi
+
+return 0
+}
+
+
+#function that extracts a couple of percentiles from an input TIFF for the selected source band contained in it
+function extract_pc1_pc2(){
+# function call: extract_pc1_pc2 $tiffProduct $sourceBandName $pc1 $pc2
+
+# get number of inputs
+inputNum=$#
+# check on number of inputs
+if [ "$inputNum" -ne "4" ] ; then
+    return ${SNAP_REQUEST_ERROR}
+fi
+
+local tiffProduct=$1
+local sourceBandName=$2
+local pc1=$3
+local pc2=$4
+local pc_csv_list=${pc1},${pc2}
+# report activity in the log
+ciop-log "INFO" "Extracting percentiles ${pc1} and ${pc2} from ${sourceBandName} contained in ${tiffProduct}"
+# Build statistics file name
+statsFile=${TMPDIR}/temp.stats
+# prepare the SNAP request
+SNAP_REQUEST=$( create_snap_request_statsComputation "${tiffProduct}" "${sourceBandName}" "${statsFile}" "${pc_csv_list}" )
+[ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
+# report activity in the log
+ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
+# report activity in the log
+ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for statistics extraction"
+# invoke the ESA SNAP toolbox
+gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
+# check the exit code
+[ $? -eq 0 ] || return $ERR_SNAP
+
+# get maximum from stats file
+percentile_1=$(cat "${statsFile}" | grep world | tr '\t' ' ' | tr -s ' ' | cut -d ' ' -f 8)
+#get minimum from stats file
+percentile_2=$(cat "${statsFile}" | grep world | tr '\t' ' ' | tr -s ' ' | cut -d ' ' -f 9)
+
+rm ${statsFile}
+echo ${percentile_1} ${percentile_2}
+return 0
+
+}
+
+
+function create_snap_request_linear_stretching(){
+# function call: create_snap_request_linear_stretching "${inputfileTIF}" "${sourceBandName}" "${linearCoeff}" "${offset}" "${min_out}" "${max_out}" "${outputfileTIF}"
+
+# function which creates the actual request from
+# a template and returns the path to the request
+
+# get number of inputs
+inputNum=$#
+# check on number of inputs
+if [ "$inputNum" -ne "7" ] ; then
+    return ${SNAP_REQUEST_ERROR}
+fi
+
+local inputfileTIF=$1
+local sourceBandName=$2
+local linearCoeff=$3
+local offset=$4
+local min_out=$5
+local max_out=$6
+local outputfileTIF=$7
+
+#sets the output filename
+snap_request_filename="${TMPDIR}/$( uuidgen ).xml"
+
+cat << EOF > ${snap_request_filename}
+<graph id="Graph">
+  <version>1.0</version>
+  <node id="Read">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${inputfileTIF}</file>
+    </parameters>
+  </node>
+  <node id="BandMaths">
+    <operator>BandMaths</operator>
+    <sources>
+      <sourceProduct refid="Read"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <targetBands>
+        <targetBand>
+          <name>quantized</name>
+          <type>uint8</type>
+          <expression>if fneq(${sourceBandName},0) then max(min(floor(${sourceBandName}*${linearCoeff}+${offset}),${max_out}),${min_out}) else 0</expression>
+          <description/>
+          <unit/>
+          <noDataValue>0</noDataValue>
+        </targetBand>
+      </targetBands>
+      <variables/>
+    </parameters>
+  </node>
+  <node id="Write">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="BandMaths"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${outputfileTIF}</file>
+      <formatName>GeoTIFF-BigTIFF</formatName>
+    </parameters>
+  </node>
+  <applicationData id="Presentation">
+    <Description/>
+    <node id="Read">
+            <displayPosition x="37.0" y="134.0"/>
+    </node>
+    <node id="BandMaths">
+      <displayPosition x="472.0" y="131.0"/>
+    </node>
+    <node id="Write">
+            <displayPosition x="578.0" y="133.0"/>
+    </node>
+  </applicationData>
+</graph>
+EOF
+[ $? -eq 0 ] && {
+    echo "${snap_request_filename}"
+    return 0
+    } || return ${SNAP_REQUEST_ERROR}
+
+}
 
 
 function main() {
@@ -1191,19 +1302,18 @@ function main() {
     gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
     # check the exit code
     [ $? -eq 0 ] || return $ERR_SNAP
-    ## QUICK-LOOK AND PROPERTIES FILE CREATION 
+    
+    ## BROWSE PRODUCT AND PROPERTIES FILE CREATION 
     #get output phase product filename
     outputPhaseTIF=$( ls "${OUTPUTDIR}"/phase_* )
     outputPhaseTIF_basename=$( echo `basename ${outputPhaseTIF}` )
-    outputPhasePNG_basename=$( echo `basename ${outputPhaseTIF}` | sed 's|tif|png|g' )
-    outputPhasePNG="${OUTPUTDIR}"/"${outputPhasePNG_basename}"
-
+    outputPhaseBrowse_basename=$( echo `basename ${outputPhaseTIF}` | sed 's|tif|rgb.tif|g' )
+    outputPhaseBrowse="${OUTPUTDIR}"/"${outputPhaseBrowse_basename}"
     #get output coherence product filename
     outputCohTIF=$( ls "${OUTPUTDIR}"/coh_* )
     outputCohTIF_basename=$( echo `basename ${outputCohTIF}` )
-    outputCohPNG_basename=$( echo `basename ${outputCohTIF}` | sed 's|tif|png|g' )
-    outputCohPNG="${OUTPUTDIR}"/"${outputCohPNG_basename}"
-
+    outputCohBrowse_basename=$( echo `basename ${outputCohTIF}` | sed 's|tif|rgb.tif|g' )
+    outputCohBrowse="${OUTPUTDIR}"/"${outputCohBrowse_basename}"
     # get timing info for the tif properties file
     dates=$(echo "${outputPhaseTIF_basename}" | sed -n -e 's|^.*'"$polarisation"'_\(.*\).tif|\1|p')
     dateStart=$(echo "${dates}" | sed -n -e 's|^\(.*\)_.*|\1|p')
@@ -1214,38 +1324,60 @@ function main() {
     secondsPerDay="86400"
     dateDiff_days=$(echo "scale=0; $dateDiff_s/$secondsPerDay" | bc )
     processingTime=$( date )    
-
     # create properties file for phase tif product
-    outputPhaseTIF_properties=$( propertiesFileCratorTIF "${outputPhaseTIF}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${SNAP_VERSION}" "${processingTime}" )
+    description="Interferometric phase"
+    outputProduct_no_ext_basename=$( echo `basename ${outputPhaseTIF}` | sed 's|.tif||g' )
+    outputPhaseProduct_no_ext="${OUTPUTDIR}"/"${outputProduct_no_ext_basename}"
+    outputPhaseTIF_properties=$( propertiesFileCratorTIF_IFG "${outputPhaseProduct_no_ext}" "${description}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${pixelSpacingInMeter}" "${SNAP_VERSION}" "${processingTime}" )
     # report activity in the log
     ciop-log "DEBUG" "Phase properties file created: ${outputPhaseTIF_properties}"
-
     # create properties file for coherence tif product
-    outputCohTIF_properties=$( propertiesFileCratorTIF "${outputCohTIF}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${SNAP_VERSION}" "${processingTime}" )
+    description="Interferometric coherence"
+    outputProduct_no_ext_basename=$( echo `basename ${outputCohTIF}` | sed 's|.tif||g' )
+    outputCohProduct_no_ext="${OUTPUTDIR}"/"${outputProduct_no_ext_basename}"
+    outputCohTIF_properties=$( propertiesFileCratorTIF_IFG "${outputCohProduct_no_ext}" "${description}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${pixelSpacingInMeter}" "${SNAP_VERSION}" "${processingTime}" )
     # report activity in the log
     ciop-log "DEBUG" "Coherence properties file created: ${outputCohTIF_properties}"
-
     # report activity in the log
-    ciop-log "INFO" "Creating png quick-look file for phase and coherence output products"
-
-    # create png for phase product
-    pconvert -f png -b 1 -c $_CIOP_APPLICATION_PATH/gpt/cubehelix_cycle.cpd -W 2048 -o "${OUTPUTDIR}" "${outputPhaseTIF}" &> /dev/null
+    ciop-log "INFO" "Creating Browse products for phase and coherence output"
+    # PHASE BROWSE PRODUCT
+    pconvert -b 1 -f tif -s 0,0 -c $_CIOP_APPLICATION_PATH/gpt/cubehelix_cycle.cpd -o ${TMPDIR} ${outputPhaseTIF} &> /dev/null
     # check the exit code
     [ $? -eq 0 ] || return $ERR_PCONVERT
-    # create png for coherence product
-    pconvert -f png -b 1 -W 2048 -o "${OUTPUTDIR}" "${outputCohTIF}" &> /dev/null
-    # check the exit code
-    [ $? -eq 0 ] || return $ERR_PCONVERT
-
-    #create .properties file for phase png quick-look
-    outputPhasePNG_properties=$( propertiesFileCratorPNG "${outputPhaseTIF}" "${outputPhasePNG}" )
-    # report activity in the log
-    ciop-log "DEBUG" "Phase properties file created: ${outputPhasePNG_properties}"
-
-    #create .properties file for coherence png quick-look
-    outputCohPNG_properties=$( propertiesFileCratorPNG "${outputCohTIF}" "${outputCohPNG}" )
-    # report activity in the log
-    ciop-log "DEBUG" "Coherence properties file created: ${outputCohPNG_properties}"
+    # output of pconvert
+    pconvertOutTIF=${TMPDIR}/${outputPhaseTIF_basename}
+    # reprojection
+    gdalwarp -ot Byte -t_srs EPSG:3857 -srcalpha -dstalpha -co "TILED=YES" -co "BLOCKXSIZE=512" -co "BLOCKYSIZE=512" -co "PHOTOMETRIC=RGB" -co "ALPHA=YES" ${pconvertOutTIF} ${outputPhaseBrowse}
+    #Add overviews
+    gdaladdo -r average ${outputPhaseBrowse} 2 4 8 16
+    returnCode=$?
+    [ $returnCode -eq 0 ] || return ${ERR_CONVERT}
+    rm $pconvertOutTIF
+    # colorbar genereation: it is static since 
+    #    the values' range is always [-pi,+pi]
+    #    the color palette is always cubehelix_cycle
+    colorbarInput=$_CIOP_APPLICATION_PATH/gpt/ifg_phase_legend.png
+    phaseColorbarOutput=${outputPhaseProduct_no_ext}.tif.legend.png
+    cp ${colorbarInput} ${phaseColorbarOutput} 
+    # COHERENCE BROWSE PRODUCT
+    # Build source band name for statistics computation
+    sourceBand=coh_${coh_band_suffix}
+    # define percentiles min max values for coherence visualization
+    min_val="pc2"
+    max_val="pc96"
+    # call function for visualization product generator
+    min_max_val=$( visualization_product_creator_one_band "${outputCohTIF}" "${sourceBand}" "${min_val}" "${max_val}" "${outputCohBrowse}" )
+    retCode=$?
+    [ $DEBUG -eq 1 ] && echo min_max_val $min_max_val
+    [ $retCode -eq 0 ] || return $retCode
+    # Colorbar legend to be customized with product statistics
+    colorbarInput=$_CIOP_APPLICATION_PATH/gpt/colorbar_gray.png #sample Gray Colorbar (as used by pconvert with single band products) colorbar image
+    # Output name of customized colorbar legend
+    coherenceColorbarOutput=${outputCohProduct_no_ext}.tif.legend.png
+    # colorbar description
+    colorbarDescription="Coherence"
+    # Customize colorbar with product statistics
+    retVal=$(colorbarCreator "${colorbarInput}" "${colorbarDescription}" ${min_max_val} "${coherenceColorbarOutput}" )
 
     ### PHASE UNWRAPPING PROCESSING
     if [ "${performPhaseUnwrapping}" = true ] ; then
@@ -1253,26 +1385,21 @@ function main() {
         wrappedPhaseDIM=${output_subset}.dim
         # output of snap export is always a folder with the same name of wrappedPhaseDIM, but without any .dim or .data extension
         output_snaphuExport=${output_subset}
-	        
 	## SNAPHU CHAIN PROCESSING
 	# report activity in the log
         ciop-log "INFO" "Preparing SNAP request file for SNAPHU export"
-        
         # prepare the SNAP request
         SNAP_REQUEST=$( create_snap_request_snaphuExport "${wrappedPhaseDIM}" )
         [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
         [ $DEBUG -eq 1 ] && cat ${SNAP_REQUEST}
         # report activity in the log
         ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for SNAPHU export" 
-
         # invoke the ESA SNAP toolbox
         gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
         # check the exit code
         [ $? -eq 0 ] || return $ERR_SNAP
-        
         # report activity in the log
         ciop-log "INFO" "Invoking SNAPHU to perform the phase unwrapping"
-
         #save current dir path
         currentDir=$( pwd )
         #go to the snaphu export product folder
@@ -1287,10 +1414,8 @@ function main() {
         ${snaphuCallCommand} &> /dev/null
         # Come back to the previous path 
         cd ${currentDir}      
-        
         # report activity in the log
         ciop-log "INFO" "Preparing SNAP request file for SNAPHU import and phase to displacement processing"
-
         # input unwrapped phase product
         unwrappedPhaseSnaphuOutHDR=${output_snaphuExport}/UnwPhase_${i_q_band_suffix}.snaphu.hdr  
         # Build output name for snaphu import output
@@ -1302,18 +1427,14 @@ function main() {
 	[ $DEBUG -eq 1 ] && cat ${SNAP_REQUEST}
         # report activity in the log
         ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
-       
         # report activity in the log
         ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for SNAPHU import and phase to displacement processing"
-
         # invoke the ESA SNAP toolbox
         gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
         # check the exit code
         [ $? -eq 0 ] || return $ERR_SNAP        
-
         # report activity in the log
         ciop-log "INFO" "Preparing SNAP request file for terrain correction processing (Input = Unwrapped phase converted into displacement)"
-        
         # Build output name for terrain corrected phase
         out_tc_phase=${OUTPUTDIR}/displacement_${i_q_band_suffix}
         # prepare the SNAP request
@@ -1322,75 +1443,60 @@ function main() {
 	[ $DEBUG -eq 1 ] && cat ${SNAP_REQUEST}
         # report activity in the log
         ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
-        
         # report activity in the log
         ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for terrain correction processing (Input = Unwrapped phase converted into displacement)"
-
         # invoke the ESA SNAP toolbox
         gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
         # check the exit code
         [ $? -eq 0 ] || return $ERR_SNAP
-	
-	## QUICK-LOOK CREATION
-	#get output displacement product filename
+        # properties file creation	
+	# get output displacement product filename
 	outDisplacementTIF=$( ls "${OUTPUTDIR}"/displacement_* )
-	outDisplacementPNG_basename=$( echo `basename ${outDisplacementTIF}` | sed 's|tif|png|g' )
-	outDisplacementPNG="${OUTPUTDIR}"/"${outDisplacementPNG_basename}"
- 
+        outDisplacementTIF_basename=$( echo `basename ${outDisplacementTIF}`)
+       	outDisplacement_no_ext_basename=$( echo ${outDisplacementTIF_basename} | sed 's|.tif||g' )
+        outDisplacement_no_ext="${OUTPUTDIR}"/"${outDisplacement_no_ext_basename}"
+        outDisplacementBrowse=${outDisplacement_no_ext}.rgb.tif
         #get processing time info useful to properties file creation for displacemenmt tif product      
         processingTime=$( date )
         # create properties file for coherence tif product
-        outputDisplacementTIF_properties=$( propertiesFileCratorTIF "${outDisplacementTIF}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${SNAP_VERSION}" "${processingTime}" )
+        description="LOS displacement [m]"
+        outputDisplacementTIF_properties=$( propertiesFileCratorTIF_IFG "${outDisplacement_no_ext}" "${description}" "${dateStart}" "${dateStop}" "${dateDiff_days}" "${polarisation}" "${pixelSpacingInMeter}" "${SNAP_VERSION}" "${processingTime}" )
         # report activity in the log
         ciop-log "DEBUG" "Displacement properties file created: ${outputDisplacementTIF_properties}"
-
-	# report activity in the log
-	ciop-log "INFO" "Creating png quick-look file for displacement output product"
-
+	# DISPLACEMENT BROWSE PRODUCT GENERATION
+        # report activity in the log
+	ciop-log "INFO" "Creating Browse Product for displacement output"
 	# create png for displacement phase product
-	pconvert -f png -b 1 -c $_CIOP_APPLICATION_PATH/gpt/JET.cpd -W 2048 -o "${OUTPUTDIR}" "${outDisplacementTIF}" &> /dev/null
+	pconvert -f tif -b 1 -c $_CIOP_APPLICATION_PATH/gpt/JET.cpd -o "${TMPDIR}" "${outDisplacementTIF}" &> /dev/null
 	# check the exit code
 	[ $? -eq 0 ] || return $ERR_PCONVERT
+        # output of pconvert
+        pconvertOutTIF=${TMPDIR}/${outDisplacementTIF_basename}
+        # reprojection
+        gdalwarp -ot Byte -t_srs EPSG:3857 -srcalpha -dstalpha -co "TILED=YES" -co "BLOCKXSIZE=512" -co "BLOCKYSIZE=512" -co "PHOTOMETRIC=RGB" -co "ALPHA=YES" ${pconvertOutTIF} ${outDisplacementBrowse}
+        # Add overviews
+        gdaladdo -r average ${outputPhaseBrowse} 2 4 8 16
+        returnCode=$?
+        [ $returnCode -eq 0 ] || return ${ERR_CONVERT}
+        rm $pconvertOutTIF
 
         ## STATISTICS EXTRACTION AND COLOR LEGEND CREATION
         # report activity in the log
-        ciop-log "INFO" "Preparing SNAP request file for statistics extraction from displacement product"
-
+        ciop-log "INFO" "Statistics extraction from displacement product and colorabar legend creation"
         # Build source bvand name for statistics computation
         displacementSourceBand=displacement_${polarisation}
-        # Build statistics file name
-        displacementStatsFile=${TMPDIR}/displacement.stats
-        # prepare the SNAP request
-        SNAP_REQUEST=$( create_snap_request_statsComputation "${outDisplacementTIF}" "${displacementSourceBand}" "${displacementStatsFile}" )
-        [ $? -eq 0 ] || return ${SNAP_REQUEST_ERROR}
-	[ $DEBUG -eq 1 ] && cat ${SNAP_REQUEST}
-        # report activity in the log
-        ciop-log "INFO" "Generated request file: ${SNAP_REQUEST}"
-
-        # report activity in the log
-        ciop-log "INFO" "Invoking SNAP-gpt on the generated request file for statistics extraction from displacement product"
-
-        # invoke the ESA SNAP toolbox
-        gpt $SNAP_REQUEST -c "${CACHE_SIZE}" &> /dev/null
-        # check the exit code
-        [ $? -eq 0 ] || return $ERR_SNAP
-
+        # default percentiles values used by pconvert
+        pc_min=2
+        pc_max=96
+        min_max_val=$( extract_pc1_pc2 $outDisplacementTIF $displacementSourceBand $pc_min $pc_max )
         #Colorbar legend to be customized with product statistics
-        colorbarInput=$_CIOP_APPLICATION_PATH/gpt/displacement_legend.png #sample JET (as used for quick-look generationwith pconvert) colorbar image
-        #Output name of customized colorbar legend
-        colorbarOutput="${OUTPUTDIR}"/displacement_legend.png
-        #Customize colorbar with product statistics
-        retVal=$(colorbarCreator "${colorbarInput}" "${displacementStatsFile}" "${colorbarOutput}" )
-        
-        colorbarOutput_basename=$( echo `basename ${colorbarOutput}`)
-
-	# report activity in the log
-	ciop-log "INFO" "Creating properties file for displacement quick-look product"
-
-	#create .properties file for displacement png quick-look
-	outDisplacementPNG_properties=$( propertiesFileCratorPNG "${outDisplacementTIF}" "${outDisplacementPNG}" "${colorbarOutput}")
-	# report activity in the log
-	ciop-log "DEBUG" "Displacement properties file created: ${outDisplacementPNG_properties}"
+        colorbarInput=$_CIOP_APPLICATION_PATH/gpt/displacement_legend.png #sample JET (as used for browse product generation with pconvert) colorbar image
+	# Output name of customized colorbar legend
+        displacementColorbarOutput=${outDisplacement_no_ext}.tif.legend.png
+        # colorbar description
+        colorbarDescription="Displacement [meters]"
+        # Customize colorbar with product statistics
+        retVal=$(colorbarCreator "${colorbarInput}" "${colorbarDescription}" ${min_max_val} "${displacementColorbarOutput}" )
     fi
 
     # publish the ESA SNAP results
@@ -1399,7 +1505,7 @@ function main() {
 	
     # cleanup
     rm -rf "${INPUTDIR}"/* "${TMPDIR}"/* "${OUTPUTDIR}"/*
-   # This part is not allowed in the multi-tenant cluster
+    # This direct access is not allowed with the multi-tenant cluster
     #if [ $DEBUG -ne 1 ] ; then
     #	for index in `seq 0 $inputfilesNum`;
     #	do
