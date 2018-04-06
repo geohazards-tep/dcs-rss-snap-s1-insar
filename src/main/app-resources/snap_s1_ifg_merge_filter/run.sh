@@ -872,12 +872,20 @@ return 0
 
 # function that creates a full resolution tif product that can be correctly shown on GEP
 function visualization_product_creator_one_band(){
-# function call visualization_product_creator_one_band ${inputTif} ${sourceBandName} ${min_val} ${max_val} ${outputTif}
+# function call visualization_product_creator_one_band ${inputTif} ${sourceBandName} ${min_val} ${max_val} ${outputTif} ${outputPNG}
+inputNum=$#
 inputTif=$1
 sourceBandName=$2
 min_val=$3
 max_val=$4
 outputTif=$5
+createPNG=0
+outputPNG=""
+# check on number of inputs for png creation
+if [ "$inputNum" -eq "6" ] ; then
+    createPNG=1
+    outputPNG=$6
+fi
 # check if min_val and max_val are absolute values or percentiles
 # pc values are assumed like pc<value> with <value> it's an integer between 0 and 100
 pc_test=$(echo "${min_val}" | grep "pc")
@@ -911,13 +919,21 @@ gpt ${SNAP_REQUEST} -c "${CACHE_SIZE}" &> /dev/null
 ciop-log "INFO" "Reprojecting and alpha band addition to image: $inputTif"
 gdalwarp -ot Byte -srcnodata 0 -dstnodata 0 -dstalpha -co "TILED=YES" -co "BLOCKXSIZE=512" -co "BLOCKYSIZE=512" -co "ALPHA=YES" -t_srs EPSG:3857 temp-outputfile.tif ${outputTif} &> /dev/null
 returnCode=$?
-
 [ $returnCode -eq 0 ] || return ${ERR_CONVERT}
-rm -f temp-outputfile*
 #add overlay
 gdaladdo -r average ${outputTif} 2 4 8 16 &> /dev/null
 returnCode=$?
 [ $returnCode -eq 0 ] || return ${ERR_CONVERT}
+# create PNG case
+if [ "$createPNG" -eq "1" ] ; then
+    ciop-log "INFO" "Creating PNG of source image: $inputTif"
+    # convert tiff in png 
+    gdal_translate -ot Byte -of png temp-outputfile.tif temp-outputfile.png &> /dev/null
+    # remove black background
+    convert temp-outputfile.png -alpha set -channel O -fill none -opaque black ${outputPNG}
+fi
+#remove temp file
+rm -f temp-outputfile*
 # echo of input min max values (usefule mainly when pc_test=true but provided in both cases)
 if [ "${pc_test}" = "false" ]; then
     echo ${min_val} ${max_val}
@@ -1313,6 +1329,8 @@ function main() {
     outputCohTIF_basename=$( echo `basename ${outputCohTIF}` )
     outputCohBrowse_basename=$( echo `basename ${outputCohTIF}` | sed 's|tif|rgb.tif|g' )
     outputCohBrowse="${OUTPUTDIR}"/"${outputCohBrowse_basename}"
+    outputCohBrowsePNG_basename=$( echo `basename ${outputCohTIF}` | sed 's|tif|png|g' )
+    outputCohBrowsePNG="${OUTPUTDIR}"/"${outputCohBrowsePNG_basename}"
     # get timing info for the tif properties file
     dates=$(echo "${outputPhaseTIF_basename}" | sed -n -e 's|^.*'"$polarisation"'_\(.*\).tif|\1|p')
     dateStart=$(echo "${dates}" | sed -n -e 's|^\(.*\)_.*|\1|p')
@@ -1352,6 +1370,8 @@ function main() {
     returnCode=$?
     [ $returnCode -eq 0 ] || return ${ERR_CONVERT}
     rm $pconvertOutTIF
+    # PNG product generation
+    pconvert -b 1 -f png -s 0,0 -c $_CIOP_APPLICATION_PATH/gpt/cubehelix_cycle.cpd -o ${OUTPUTDIR} ${outputPhaseTIF} &> /dev/null 
     # colorbar genereation: it is static since 
     #    the values' range is always [-pi,+pi]
     #    the color palette is always cubehelix_cycle
@@ -1365,7 +1385,7 @@ function main() {
     min_val="pc2"
     max_val="pc96"
     # call function for visualization product generator
-    min_max_val=$( visualization_product_creator_one_band "${outputCohTIF}" "${sourceBand}" "${min_val}" "${max_val}" "${outputCohBrowse}" )
+    min_max_val=$( visualization_product_creator_one_band "${outputCohTIF}" "${sourceBand}" "${min_val}" "${max_val}" "${outputCohBrowse}" "${outputCohBrowsePNG}" )
     retCode=$?
     [ $DEBUG -eq 1 ] && echo min_max_val $min_max_val
     [ $retCode -eq 0 ] || return $retCode
@@ -1465,10 +1485,14 @@ function main() {
 	# DISPLACEMENT BROWSE PRODUCT GENERATION
         # report activity in the log
 	ciop-log "INFO" "Creating Browse Product for displacement output"
-	# create png for displacement phase product
+	# create browse tif for displacement phase product
 	pconvert -f tif -b 1 -c $_CIOP_APPLICATION_PATH/gpt/JET.cpd -o "${TMPDIR}" "${outDisplacementTIF}" &> /dev/null
 	# check the exit code
 	[ $? -eq 0 ] || return $ERR_PCONVERT
+        # create browse png for displacement phase product
+        pconvert -f png -b 1 -c $_CIOP_APPLICATION_PATH/gpt/JET.cpd -o "${OUTPUTDIR}" "${outDisplacementTIF}" &> /dev/null
+        # check the exit code
+        [ $? -eq 0 ] || return $ERR_PCONVERT
         # output of pconvert
         pconvertOutTIF=${TMPDIR}/${outDisplacementTIF_basename}
         # reprojection
