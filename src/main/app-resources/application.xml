@@ -41,8 +41,8 @@
                         <default>Sentinel Restituted (Auto Download)</default>
                 </options>
          </parameter>
-         <parameter id="cohWinAz" title="Azimuth coherence window size" abstract="Define the coherence estimation azimuth window size for the Interferogram processing [integer number of pixels]" scope="runtime" maxOccurs="1">5</parameter>
-         <parameter id="cohWinRg" title="Range coherence window size" abstract="Define the coherence estimation range window size for the Interferogram processing [integer number of pixels]" scope="runtime" maxOccurs="1">20</parameter>
+         <parameter id="cohWinAz" title="Azimuth coherence window size" abstract="Define the coherence estimation azimuth window size for the Interferogram processing [integer number of pixels]" scope="runtime" maxOccurs="1">10</parameter>
+         <parameter id="cohWinRg" title="Range coherence window size" abstract="Define the coherence estimation range window size for the Interferogram processing [integer number of pixels]" scope="runtime" maxOccurs="1">40</parameter>
          <parameter id="demtype" title="DEM type" abstract="Define the DEM source for the Back-Geocoding Coregistration, Topographic Phase Removal and Terrain Correction processing. NOTE: SRTM valid in the [-56 deg,+60 deg] range of latitudes." scope="runtime" maxOccurs="1">
 		<options>
                         <option>SRTM 3Sec</option>
