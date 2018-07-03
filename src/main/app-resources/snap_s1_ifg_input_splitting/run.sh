@@ -145,7 +145,7 @@ function get_data() {
   local res
 
   #get product url from input catalogue reference
-  enclosure="$( opensearch-client -f atom "${ref}" enclosure)"
+  enclosure="$( opensearch-client "${ref}" enclosure)"
   # opensearh client doesn't deal with local paths
   res=$?
   [ $res -eq 0 ] && [ -z "${enclosure}" ] && return ${ERR_GETDATA}
@@ -156,6 +156,7 @@ function get_data() {
   #enclosure=$(echo "${enclosure}" | sed 's|apihub|dhus|g')
 
   enclosure=$(echo "${enclosure}" | tail -1)
+  ciop-log "INFO" "Retrieved enclosure: $enclosure"
 
   #download data and get data name
   local_file="$( echo ${enclosure} | ciop-copy -f -U -O ${target} - 2> ${TMPDIR}/ciop_copy.stderr )"
@@ -465,8 +466,12 @@ function main() {
 
     # retrieve the MASTER product to the local temporary folder TMPDIR provided by the framework (this folder is only used by this process)
     # the utility returns the local path so the variable $retrievedMaster contains the local path to the MASTER product
-    retrievedMaster=$( get_data "${master}" "${TMPDIR}" ) 
-     
+    TMPDIR_M="${TMPDIR}/master"
+    mkdir -p $TMPDIR_M
+    retrievedMaster=$( get_data "${master}" "${TMPDIR_M}" ) 
+    if [[ -d "$retrievedMaster" ]]; then
+	retrievedMaster=$(find ${retrievedMaster} -name 'manifest.safe')
+    fi     
     #masterTmp=/tmp/snap/S1A_IW_SLC__1SDV_20151103T101314_20151103T101341_008439_00BED5_B751.SAFE.zip
     #retrievedMaster=$( ciop-copy -U -o $TMPDIR "$masterTmp" )
 
@@ -486,8 +491,12 @@ function main() {
 
     # retrieve the SLAVE product to the local temporary folder TMPDIR provided by the framework (this folder is only used by this process)
     # the utility returns the local path so the variable $retrievedSlave contains the local path to the SLAVE product
-    retrievedSlave=$( get_data "${slave}" "${TMPDIR}" )
-
+    TMPDIR_S="${TMPDIR}/slave"
+    mkdir -p $TMPDIR_S    
+    retrievedSlave=$( get_data "${slave}" "${TMPDIR_S}" )
+    if [[ -d "$retrievedSlave" ]]; then
+	retrievedSlave=$(find ${retrievedSlave} -name 'manifest.safe')
+    fi
     #slaveTmp=/tmp/snap/S1A_IW_SLC__1SDV_20151127T101308_20151127T101335_008789_00C888_2D21.SAFE.zip
     #retrievedSlave=$( ciop-copy -U -o $TMPDIR "$slaveTmp" )
 
