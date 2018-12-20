@@ -20,7 +20,7 @@ pipeline {
       steps {
       checkout([
          $class: 'GitSCM',
-         branches: [[name: 2b96a9ec0b098020d7cf9f19e09678367ede6fc7 ]],
+         branches: [[name: '2b96a9ec0b098020d7cf9f19e09678367ede6fc7' ]],
          doGenerateSubmoduleConfigurations: scm.doGenerateSubmoduleConfigurations,
          extensions: scm.extensions,
          userRemoteConfigs: scm.userRemoteConfigs
