@@ -11,13 +11,6 @@ pipeline {
   agent {
     node {
       label 'ci-community-docker'
-      checkout([
-         $class: 'GitSCM',
-         branches: [[name: '2b96a9ec0b098020d7cf9f19e09678367ede6fc7' ]],
-         doGenerateSubmoduleConfigurations: scm.doGenerateSubmoduleConfigurations,
-         extensions: scm.extensions,
-         userRemoteConfigs: [[url: 'https://github.com/geohazards-tep/dcs-rss-snap-s1-insar.git']]
-      ])
     }
   }
 
