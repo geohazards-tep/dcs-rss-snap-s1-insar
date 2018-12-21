@@ -703,9 +703,9 @@ function create_snap_request_snaphuExport() {
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <targetFolder>${TMPDIR}</targetFolder>
       <statCostMode>DEFO</statCostMode>
-      <initMethod>MCF</initMethod>
-      <numberOfTileRows>1</numberOfTileRows>
-      <numberOfTileCols>1</numberOfTileCols>
+      <initMethod>MST</initMethod>
+      <numberOfTileRows>10</numberOfTileRows>
+      <numberOfTileCols>10</numberOfTileCols>
       <numberOfProcessors>4</numberOfProcessors>
       <rowOverlap>0</rowOverlap>
       <colOverlap>0</colOverlap>
@@ -1128,12 +1128,6 @@ function main() {
     ciop-log "DEBUG" "The selected subset bounding box data is: ${SubsetBoundingBox}"
 
     # retrieve the parameters value from workflow or job default value
-    bBoxSize="`ciop-getparam bBoxSize`"
-    # log the value, it helps debugging.
-    # the log entry is available in the process stderr
-    ciop-log "DEBUG" "The bounding box size for subsetting is: ${bBoxSize}"
-
-    # retrieve the parameters value from workflow or job default value
     performPhaseUnwrapping="`ciop-getparam performPhaseUnwrapping`"
 
     # log the value, it helps debugging.
@@ -1215,12 +1209,8 @@ function main() {
 
     ### SUBSETTING BOUNDING BOX DEFINITION FOR PHASE UNWRAPPING PROCESSING
     local output_subset=${TMPDIR}/target_IW_${polarisation}_Split_Orb_Back_ESD_Ifg_Deb_DInSAR_Merge_Flt_ML_Sbs
-    local lon_min=""
-    local lat_min=""
-    local lon_max=""
-    local lat_max=""
-    # compute bounding box for subsetting
-    if [ "${performPhaseUnwrapping}" = true ] && [ "${bBoxSize}" != "Inf" ] ; then
+    local subsettingBox="-180,-56,180,60"
+    if [ "${performPhaseUnwrapping}" = true ] ; then
         # bounding box from csv to space separated value
         SubsetBoundingBox=$( echo "${SubsetBoundingBox}" | sed 's|,| |g' )
         #convert subset bounding box into SNAP subsetting coordinates format
@@ -1232,14 +1222,17 @@ function main() {
         # compute center of box
         lon_center=$(echo "scale=4; ($lon_min_user+$lon_max_user)/2" | bc)
         lat_center=$(echo "scale=4; ($lat_min_user+$lat_max_user)/2" | bc)
-        
         # fixed size in degrees of the box
-        local boxWidth=${bBoxSize}
+        local boxWidth="0.25"
         # AOI limited by the fixed size
         lon_min_box=$(echo "scale=4; $lon_center-($boxWidth/2)" | bc)
         lon_max_box=$(echo "scale=4; $lon_center+($boxWidth/2)" | bc)
         lat_min_box=$(echo "scale=4; $lat_center-($boxWidth/2)" | bc)
         lat_max_box=$(echo "scale=4; $lat_center+($boxWidth/2)" | bc)
+        local lon_min=""
+        local lat_min=""
+        local lon_max=""
+        local lat_max=""
         # if the user AOI is contained in the limited AOI get user AOI
         if (( $(bc <<< "$lon_min_user > $lon_min_box") )) && (( $(bc <<< "$lon_max_user < $lon_max_box") )) && (( $(bc <<< "$lat_min_user > $lat_min_box") )) && (( $(bc <<< "$lat_max_user < $lat_max_box") ))
         then
@@ -1254,19 +1247,13 @@ function main() {
                 lon_max="${lon_max_box}"
                 lat_max="${lat_max_box}"
         fi
+        subsettingBox="(("${lon_min}" "${lat_min}", "${lon_max}" "${lat_min}", "${lon_max}" "${lat_max}", "${lon_min}" "${lat_max}", "${lon_min}" "${lat_min}"))"
 
-    # set bounding box of the whole Earth to have the whole scene
-    elif [ "${performPhaseUnwrapping}" = true ] && [ "${bBoxSize}" = "Inf" ] ; then
-        lon_min="-180"
-        lat_min="-90"
-        lon_max="180"
-        lat_max="90"       
+        # log the value, it helps debugging.
+        # the log entry is available in the process stderr
+        ciop-log "INFO" "Applied subsettingBox = ${subsettingBox}"
+
     fi
-    
-    subsettingBox="(("${lon_min}" "${lat_min}", "${lon_max}" "${lat_min}", "${lon_max}" "${lat_max}", "${lon_min}" "${lat_max}", "${lon_min}" "${lat_min}"))"
-    # log the value, it helps debugging.
-    # the log entry is available in the process stderr
-    ciop-log "INFO" "Applied subsettingBox = ${subsettingBox}"
 
     ### MERGING - TOPO PHASE REMOVAL - FILTERING - MULTILOOKING
     # output products filename
