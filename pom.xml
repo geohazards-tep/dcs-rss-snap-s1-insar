@@ -11,15 +11,7 @@
     <version>2.0.0</version>
   </parent>
   <description>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</description>
-<<<<<<< HEAD
   <version>1.6.3</version>
-=======
-<<<<<<< HEAD
-  <version>1.5.2</version>
-=======
-  <version>1.6.2-SNAPSHOT</version>
->>>>>>> parent of 3fe6389... Revert "Fix for IPT S3 porting"
->>>>>>> 9f157a4e47c7f099b0f5eaabf10ca3eba717c30d
   <properties>
     <summary>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</summary>
     <description>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</description>
