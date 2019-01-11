@@ -1,14 +1,27 @@
-node('ci-community-docker') {
+pipeline {
 
-  stage('Init') {
-    checkout([$class: 'GitSCM', branches: [[name: '2b96a9ec0b098020d7cf9f19e09678367ede6fc7' ]],
-     userRemoteConfigs: [[url: 'https://github.com/geohazards-tep/dcs-rss-snap-s1-insar.git']]])
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '5'))
   }
 
-  stage('Package & Dockerize') {
-    withMaven( maven: 'apache-maven-3.0.5' ) {
+  environment {
+        PATH="/opt/anaconda/bin:$PATH"
+  }
+
+  agent {
+    node {
+      label 'ci-community-docker'
+    }
+  }
+
+  stages {
+
+    stage('Package & Dockerize') {
+      steps {
+        withMaven( maven: 'apache-maven-3.0.5' ) {
             sh 'mvn -B deploy'
         }
+      }
+    }
   }
-
 }
