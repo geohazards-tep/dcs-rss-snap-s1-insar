@@ -45,9 +45,10 @@ function cleanExit ()
     esac
 
    [ ${retval} -ne 0 ] && ciop-log "ERROR" "Error ${retval} - ${msg}, processing aborted" || ciop-log "INFO" "${msg}"
-   if [ $DEBUG -ne 1 ] ; then
-	[ ${retval} -ne 0 ] && hadoop dfs -rmr $(dirname "${inputfiles[0]}")
-   fi
+   # This direct access is not allowed with the multi-tenant cluster
+   #if [ $DEBUG -ne 1 ] ; then
+   #	[ ${retval} -ne 0 ] && hadoop dfs -rmr $(dirname "${inputfiles[0]}")
+   #fi
    exit ${retval}
 }
 
@@ -703,9 +704,9 @@ function create_snap_request_snaphuExport() {
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <targetFolder>${TMPDIR}</targetFolder>
       <statCostMode>DEFO</statCostMode>
-      <initMethod>MST</initMethod>
-      <numberOfTileRows>10</numberOfTileRows>
-      <numberOfTileCols>10</numberOfTileCols>
+      <initMethod>MCF</initMethod>
+      <numberOfTileRows>1</numberOfTileRows>
+      <numberOfTileCols>1</numberOfTileCols>
       <numberOfProcessors>4</numberOfProcessors>
       <rowOverlap>0</rowOverlap>
       <colOverlap>0</colOverlap>
@@ -1084,6 +1085,10 @@ function main() {
     # log the value, it helps debugging.
     # the log entry is available in the process stderr
     ciop-log "DEBUG" "Number of input products ${inputfilesNum}"
+    local master="`ciop-getparam master`"
+    #  master="${inputfiles[0]}"        
+    ciop-log "DEBUG" "The master product reference to be used is: ${master}"
+
 
     # retrieve the parameters value from workflow or job default value
     performPhaseFiltering="`ciop-getparam performPhaseFiltering`"
@@ -1122,11 +1127,21 @@ function main() {
     
     # retrieve the parameters value from workflow or job default value
     SubsetBoundingBox="`ciop-getparam SubsetBoundingBox`"
-
+    
+    if [[ -z "$SubsetBoundingBox" ]]; then
+	SubsetBoundingBox="-180,-90,180,90"
+    fi	
+    
     # log the value, it helps debugging.
     # the log entry is available in the process stderr
     ciop-log "DEBUG" "The selected subset bounding box data is: ${SubsetBoundingBox}"
-
+    
+    # retrieve the parameters value from workflow or job default value
+    bBoxSize="`ciop-getparam bBoxSize`"
+    # log the value, it helps debugging.
+    # the log entry is available in the process stderr
+    ciop-log "DEBUG" "The bounding box size for subsetting is: ${bBoxSize}"
+    
     # retrieve the parameters value from workflow or job default value
     performPhaseUnwrapping="`ciop-getparam performPhaseUnwrapping`"
 
@@ -1207,10 +1222,19 @@ function main() {
     # the log entry is available in the process stderr
     ciop-log "DEBUG" "Polarisation extracted from input product name: ${polarisation}"
 
-    ### SUBSETTING BOUNDING BOX DEFINITION FOR PHASE UNWRAPPING PROCESSING
+   
+        ### SUBSETTING BOUNDING BOX DEFINITION FOR PHASE UNWRAPPING PROCESSING
     local output_subset=${TMPDIR}/target_IW_${polarisation}_Split_Orb_Back_ESD_Ifg_Deb_DInSAR_Merge_Flt_ML_Sbs
-    local subsettingBox="-180,-56,180,60"
-    if [ "${performPhaseUnwrapping}" = true ] ; then
+    local subsettingBox="-180,-90,180,90"
+
+    local lon_min=""
+    local lat_min=""
+    local lon_max=""
+    local lat_max=""
+   # ciop-log "INFO" "SubsetBoundingBox from user = ${SubsetBoundingBox}"
+
+    # compute bounding box for subsetting
+    if [ "${performPhaseUnwrapping}" = true ]; then
         # bounding box from csv to space separated value
         SubsetBoundingBox=$( echo "${SubsetBoundingBox}" | sed 's|,| |g' )
         #convert subset bounding box into SNAP subsetting coordinates format
@@ -1219,21 +1243,27 @@ function main() {
         lat_min_user="${SubsetBoundingBoxArray[1]}"
         lon_max_user="${SubsetBoundingBoxArray[2]}"
         lat_max_user="${SubsetBoundingBoxArray[3]}"
-        # compute center of box
-        lon_center=$(echo "scale=4; ($lon_min_user+$lon_max_user)/2" | bc)
-        lat_center=$(echo "scale=4; ($lat_min_user+$lat_max_user)/2" | bc)
-        # fixed size in degrees of the box
-        local boxWidth="0.25"
-        # AOI limited by the fixed size
-        lon_min_box=$(echo "scale=4; $lon_center-($boxWidth/2)" | bc)
-        lon_max_box=$(echo "scale=4; $lon_center+($boxWidth/2)" | bc)
-        lat_min_box=$(echo "scale=4; $lat_center-($boxWidth/2)" | bc)
-        lat_max_box=$(echo "scale=4; $lat_center+($boxWidth/2)" | bc)
+        #retrieve master format, has to be json, its changed here if it is not json
+        format=$(echo ${master} | sed -n -e 's|^.*format=\([a-z]*\)\&.*$|\1|p')
+        if [[ "${format}" == "atom" ]]; then
+                master=$(echo "${master}" | sed 's|format=[a-z]*|format=json|g')
+        fi
+        ciop-log "INFO" "Retrieved master for subset check: ${master}"
+        #longitudes and latitudes footprint of master is collected and put in a list
+        longitudes=$( curl "${master}"  2>/dev/null | jq '.features[].geometry.coordinates[][0][0],.features[].geometry.coordinates[][1][0],.features[].geometry.coordinates[][2][0],.features[].geometry.coordinates[][3][0],.features[].geometry.coordinates[][4][0]')
+        latitudes=$( curl "${master}"  2>/dev/null | jq '.features[].geometry.coordinates[][0][1],.features[].geometry.coordinates[][1][1],.features[].geometry.coordinates[][2][1],.features[].geometry.coordinates[][3][1],.features[].geometry.coordinates[][4][1]')
+        #maximum longitude and latitude from list retrieved
+        lon_min_box=$(echo "${longitudes[*]}" | sort -nr | tail -n1 )
+        lon_max_box=$(echo "${longitudes[*]}" | sort -nr | head -n1 )
+        lat_min_box=$(echo "${latitudes[*]}" | sort -nr | tail -n1 )
+        lat_max_box=$(echo "${latitudes[*]}" | sort -nr | head -n1 )
+
         local lon_min=""
         local lat_min=""
         local lon_max=""
         local lat_max=""
-        # if the user AOI is contained in the limited AOI get user AOI
+        ciop-log "INFO" "lon/lat min/max footprint:${lon_min_box} ${lat_min_box},${lon_max_box} ${lat_max_box}"
+        # if the user AOI is contained in the footprint of the image
         if (( $(bc <<< "$lon_min_user > $lon_min_box") )) && (( $(bc <<< "$lon_max_user < $lon_max_box") )) && (( $(bc <<< "$lat_min_user > $lat_min_box") )) && (( $(bc <<< "$lat_max_user < $lat_max_box") ))
         then
                 lon_min="${lon_min_user}"
@@ -1241,16 +1271,17 @@ function main() {
                 lon_max="${lon_max_user}"
                 lat_max="${lat_max_user}"
         else
-        # otherwise get limited AOI
-                lon_min="${lon_min_box}"
-                lat_min="${lat_min_box}"
-                lon_max="${lon_max_box}"
-                lat_max="${lat_max_box}"
+        # otherwise get the complete world as AOI
+                lon_min="-180"
+                lat_min="-90"
+                lon_max="180"
+                lat_max="90"
         fi
-        subsettingBox="(("${lon_min}" "${lat_min}", "${lon_max}" "${lat_min}", "${lon_max}" "${lat_max}", "${lon_min}" "${lat_max}", "${lon_min}" "${lat_min}"))"
 
-        # log the value, it helps debugging.
-        # the log entry is available in the process stderr
+        subsettingBox="(("${lon_min}" "${lat_min}", "${lon_max}" "${lat_min}", "${lon_max}" "${lat_max}", "${lon_min}" "${lat_max}", "${lon_min}" "${lat_min}"))"
+    # log the value, it helps debugging.
+    # the log entry is available in the process stderr
+
         ciop-log "INFO" "Applied subsettingBox = ${subsettingBox}"
 
     fi
@@ -1528,12 +1559,13 @@ function main() {
 	
     # cleanup
     rm -rf "${INPUTDIR}"/* "${TMPDIR}"/* "${OUTPUTDIR}"/*
-    if [ $DEBUG -ne 1 ] ; then
-    	for index in `seq 0 $inputfilesNum`;
-    	do
-    		hadoop dfs -rmr "${inputfiles[$index]}"     	
-    	done
-    fi
+    # This direct access is not allowed with the multi-tenant cluster
+    #if [ $DEBUG -ne 1 ] ; then
+    #	for index in `seq 0 $inputfilesNum`;
+    #	do
+    #		hadoop dfs -rmr "${inputfiles[$index]}"     	
+    #	done
+    #fi
 
     return ${SUCCESS}
 }
@@ -1543,7 +1575,7 @@ mkdir -p ${TMPDIR}/output
 export OUTPUTDIR=${TMPDIR}/output
 mkdir -p ${TMPDIR}/input
 export INPUTDIR=${TMPDIR}/input
-export DEBUG=0
+export DEBUG=1
 
 declare -a inputfiles
 
