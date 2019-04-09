@@ -4,7 +4,8 @@
     <jobTemplate id="snap_s1_ifg_input_splitting">
       <streamingExecutable>/application/snap_s1_ifg_input_splitting/run.sh</streamingExecutable>
       <defaultParameters>
-         <parameter id="slave" title="Slave product reference" abstract="Define the slave product reference to be processed with SNAP" scope="runtime" maxOccurs="1"></parameter>
+         <parameter id="master" title="Master product reference" abstract="Define the master product reference to be processed with SNAP" scope="runtime" maxOccurs="1"></parameter>
+	 <parameter id="slave" title="Slave product reference" abstract="Define the slave product reference to be processed with SNAP" scope="runtime" maxOccurs="1"></parameter>
          <parameter id="subswath" title="Product subswath" abstract="Define the subswath of the product to be processed with SNAP" scope="test" maxOccurs="1">
 	         <options>
         	         <option>IW1</option>
@@ -41,8 +42,8 @@
                         <default>Sentinel Restituted (Auto Download)</default>
                 </options>
          </parameter>
-         <parameter id="cohWinAz" title="Azimuth coherence window size" abstract="Define the coherence estimation azimuth window size for the Interferogram processing [integer number of pixels]" scope="runtime" maxOccurs="1">10</parameter>
-         <parameter id="cohWinRg" title="Range coherence window size" abstract="Define the coherence estimation range window size for the Interferogram processing [integer number of pixels]" scope="runtime" maxOccurs="1">40</parameter>
+         <parameter id="cohWinAz" title="Azimuth coherence window size" abstract="Define the coherence estimation azimuth window size for the Interferogram processing [integer number of pixels]" scope="runtime" maxOccurs="1">4</parameter>
+         <parameter id="cohWinRg" title="Range coherence window size" abstract="Define the coherence estimation range window size for the Interferogram processing [integer number of pixels]" scope="runtime" maxOccurs="1">20</parameter>
          <parameter id="demtype" title="DEM type" abstract="Define the DEM source for the Back-Geocoding Coregistration, Topographic Phase Removal and Terrain Correction processing. NOTE: SRTM valid in the [-56 deg,+60 deg] range of latitudes." scope="runtime" maxOccurs="1">
 		<options>
                         <option>SRTM 3Sec</option>
@@ -68,8 +69,8 @@
                                         <default>true</default>
                         </options>
                  </parameter>
-         <parameter id="nAzLooks" title="Azimuth Multilook factor" abstract="Define the multilook factor applied for Azimuth direction in the Multilooking processing [integer]" scope="runtime" maxOccurs="1">1</parameter>
-         <parameter id="nRgLooks" title="Range Multilook factor" abstract="Define the multilook factor applied for Range direction in the Multilooking processing [integer]" scope="runtime" maxOccurs="1">4</parameter>
+         <parameter id="nAzLooks" title="Azimuth Multilook factor" abstract="Define the multilook factor applied for Azimuth direction in the Multilooking processing [integer]" scope="runtime" maxOccurs="1">2</parameter>
+         <parameter id="nRgLooks" title="Range Multilook factor" abstract="Define the multilook factor applied for Range direction in the Multilooking processing [integer]" scope="runtime" maxOccurs="1">10</parameter>
 		 <parameter id="performPhaseUnwrapping" title="Perform phase unwrapping" abstract="Select if the phase unwrapping (through SNAPHU) has to be performed" scope="runtime" maxOccurs="1">
 			 <options>
 					<option>true</option>
@@ -77,8 +78,9 @@
 					<default>false</default>
 			</options>
 		 </parameter>
-                 <parameter id="SubsetBoundingBox" title="Subset Bounding Box for Unwrapping" abstract="Define the area of interest for the Phase Unwrapping processing [lon_min,lat_min,lon_max,lat_max]. NOTE: Area is limited to 0.25*0.25 degrees around the center." scope="runtime" type="BoundingBoxData" minOccurs="1" maxOccurs="1"></parameter>
-         <parameter id="pixelSpacingInMeter" title="Pixel spacing in meters" abstract="Define the pixel spacing for the Terrain-Correction processing [meters]" scope="runtime" maxOccurs="1">15.0</parameter>
+          <parameter id="SubsetBoundingBox" title="Subset Bounding Box for Unwrapping" abstract="Define the area of interest for the Phase Unwrapping processing [lon_min,lat_min,lon_max,lat_max]." scope="runtime" minOccurs="0" maxOccurs="1"></parameter>
+         <parameter id="bBoxSize" title="Bounding Box Size for Unwrapping [deg]" abstract="Define the square window size around center of bounding box for Phase Unwrapping [degrees]" scope="test" minOccurs="1"  maxOccurs="1">Inf</parameter> 
+	 <parameter id="pixelSpacingInMeter" title="Pixel spacing in meters" abstract="Define the pixel spacing for the Terrain-Correction processing [meters]" scope="runtime" maxOccurs="1">100</parameter>
          <parameter id="demtype" title="DEM type" abstract="Define the DEM source for the Back-Geocoding Coregistration, Topographic Phase Removal and Terrain Correction processing. NOTE: SRTM valid in the [-56 deg,+60 deg] range of latitudes." scope="test" maxOccurs="1">
                 <options>
                         <option>SRTM 3Sec</option>
@@ -89,6 +91,8 @@
                         <default>SRTM 3Sec</default>
                 </options>
          </parameter>
+         <parameter id="master" title="Master product reference" abstract="Define the master product reference to be processed with SNAP" scope="runtime" maxOccurs="1"></parameter>
+
          <parameter id="mapProjection" title="Map projection" abstract="Define the Map Projection for the Terrain Correction processing" scope="test" maxOccurs="1">
                 <options>
                         <option>WGS84(DD)</option>
