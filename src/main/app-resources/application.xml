@@ -107,7 +107,7 @@
       </defaultJobconf>
     </jobTemplate>
   </jobTemplates>
-  <workflow id="snap-s1-ifg-overall" title="SNAP Sentinel-1 IW SLC Interferogram and Displacements" abstract="This service provides the interferometric processor for the Sentinel-1 TOPSAR IW SLC data performed through SNAP. SNAP is a common architecture for all Sentinel Toolboxes, which is ideal for Earth Observation processing and analysis.">
+  <workflow id="snap-s1-ifg-overall" title="SNAP Sentinel-1 IW SLC Interferogram and Displacements" abstract="This service provides the interferometric processor for the Sentinel-1 TOPSAR IW SLC data performed through SNAP. SNAP is a common architecture for all Sentinel Toolboxes, which is ideal for Earth Observation processing and analysis. The tutorial can be found at: https://terradue.github.io/doc-tep-geohazards/tutorials/rss_snap_s1_insar.html">
     <workflowVersion>1.0</workflowVersion>
     <node id="node_snap_s1_ifg_input_splitting">
       <job id="snap_s1_ifg_input_splitting" />
