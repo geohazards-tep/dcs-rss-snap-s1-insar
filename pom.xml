@@ -11,7 +11,7 @@
     <version>3.0.1-docker</version>
   </parent>
   <description>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</description>
-  <version>1.7</version>
+  <version>1.8.1</version>
   <properties>
     <summary>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</summary>
     <description>Interferometric SAR processing of Sentinel 1 TOPSAR IW images with SNAP</description>
